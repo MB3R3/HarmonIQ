@@ -11,4 +11,3 @@ class Token(models.Model):
     refresh_token = models.CharField(max_length=500)
     expires_in = models.DateTimeField()
     token_type = models.CharField(max_length=50)
-    ssss
