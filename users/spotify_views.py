@@ -1,13 +1,12 @@
+from datetime import timedelta
+
 from django.contrib.auth import get_user_model
 from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.utils import timezone
-from datetime import timedelta
-
-import requests
 
 from .models import SpotifyConnection
-from .services.spotify import SpotifyAuthService
+from .services.spotify import SpotifyAuthService, SpotifyService
 
 
 User = get_user_model()
@@ -22,19 +21,7 @@ def spotify_login(request):
     return redirect(authorization_url)
 
 
-
 def spotify_callback(request):
-
-    # User denied access on Spotify side: ?error=access_denied
-    spotify_error = request.GET.get("error")
-    if spotify_error:
-        return JsonResponse(
-            {
-                "error": "Spotify authorization failed",
-                "detail": spotify_error,
-            },
-            status=400,
-        )
 
     code = request.GET.get("code")
 
@@ -44,34 +31,43 @@ def spotify_callback(request):
             status=400,
         )
 
-    try:
-        token_data = SpotifyAuthService.exchange_code(code)
-    except requests.RequestException as exc:
-        detail = "Failed to exchange code with Spotify"
-        if exc.response is not None:
-            try:
-                detail = exc.response.json()
-            except ValueError:
-                detail = exc.response.text
-        return JsonResponse(
-            {"error": "Spotify authorization failed", "detail": detail},
-            status=400,
-        )
+    token_data = SpotifyAuthService.exchange_code(code)
 
-    access_token = token_data.get("access_token")
+    access_token = token_data["access_token"]
     refresh_token = token_data.get("refresh_token")
+    expires_in = token_data["expires_in"]
 
-    if not access_token:
-        return JsonResponse(
-            {
-                "error": "Spotify authorization failed",
-                "detail": token_data,
-            },
-            status=400,
-        )
+    spotify = SpotifyService(access_token)
+
+    spotify_profile = spotify.get_current_user()
+
+    spotify_account_id = spotify_profile["id"]
+
+    username = (
+        spotify_profile.get("display_name")
+        or f"spotify_{spotify_account_id}"
+    )
+
+    user, _ = User.objects.get_or_create(
+        username=username
+    )
+
+    SpotifyConnection.objects.update_or_create(
+        user=user,
+        defaults={
+            "spotify_account_id": spotify_account_id,
+            "access_token": access_token,
+            "refresh_token": refresh_token or "",
+            "token_expires_at": (
+                timezone.now()
+                + timedelta(seconds=expires_in)
+            ),
+        },
+    )
 
     return JsonResponse({
-        "message": "Spotify authentication successful",
-        "access_token_received": bool(access_token),
-        "refresh_token_received": bool(refresh_token),
+        "message": "Spotify connection saved",
+        "spotify_account_id": spotify_account_id,
+        "display_name": spotify_profile.get("display_name"),
+        "user_id": user.id,
     })
