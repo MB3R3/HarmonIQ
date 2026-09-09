@@ -70,7 +70,11 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = False
+CORS_ALLOWED_ORIGINS = [
+    # Local React frontend (dev). Add prod origins here, not "*".
+    "http://localhost:5173",
+]
 
 ROOT_URLCONF = 'config.urls'
 
@@ -132,6 +136,18 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.SessionAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
+}
+
+# After a successful login, send users somewhere valid instead of
+# Django's default broken /accounts/profile/.
+LOGIN_REDIRECT_URL = "/api/recommendations/discover/"
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
