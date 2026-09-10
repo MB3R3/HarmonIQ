@@ -2,8 +2,10 @@ import { useState } from "react";
 
 import DiscoveryBuilder from "../components/DiscoveryBuilder";
 import RecentDiscoveries from "../components/RecentDiscoveries";
-import RecommendationPreview from "../components/RecommendationPreview";
+import RecommendationResults from "../components/RecommendationResults";
+import { discoverMusic } from "../services/recommendations";
 import type { DiscoveryForm } from "../types/discovery";
+import type { Recommendation } from "../types/recommendation";
 
 const INITIAL_FORM: DiscoveryForm = {
   mood: null,
@@ -15,17 +17,32 @@ const INITIAL_FORM: DiscoveryForm = {
 
 function DiscoverPage() {
   const [form, setForm] = useState<DiscoveryForm>(INITIAL_FORM);
-  const [request, setRequest] = useState<DiscoveryForm | null>(null);
+  const [submittedForm, setSubmittedForm] =
+    useState<DiscoveryForm>(INITIAL_FORM);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [results, setResults] = useState<Recommendation[]>([]);
+  const [hasSubmitted, setHasSubmitted] = useState(false);
 
-  const handleSubmit = (next: DiscoveryForm) => {
-    setRequest(next);
-    console.log("Discovery request (frontend prototype, no API):", {
-      mood: next.mood,
-      genre: next.genre,
-      era: next.era,
-      artist: next.artist.trim() || null,
-      discovery_style: next.discoveryStyle,
-    });
+  const handleSubmit = async (next: DiscoveryForm) => {
+    setError(null);
+    setIsLoading(true);
+    setHasSubmitted(true);
+
+    try {
+      const response = await discoverMusic(next);
+      setResults(response.results);
+      setSubmittedForm(next);
+    } catch (err) {
+      setResults([]);
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to discover music right now. Please try again."
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -43,7 +60,14 @@ function DiscoverPage() {
 
       <DiscoveryBuilder form={form} onChange={setForm} onSubmit={handleSubmit} />
 
-      <RecommendationPreview request={request} />
+      <RecommendationResults
+        form={submittedForm}
+        hasSubmitted={hasSubmitted}
+        isLoading={isLoading}
+        error={error}
+        results={results}
+        onRetry={() => handleSubmit(form)}
+      />
 
       <RecentDiscoveries />
     </section>
