@@ -1,3 +1,5 @@
+const WAVE_BARS = Array.from({ length: 9 }, (_, index) => index);
+
 function Hero() {
   return (
     <section className="hero">
@@ -21,10 +23,25 @@ function Hero() {
           </div>
         </div>
 
-        <div className="hero__visual" aria-hidden="true">
+        <div
+          className="hero__visual"
+          role="img"
+          aria-label="Animated speaker responding to a heartbeat-rate sound display"
+        >
+          <span className="hero__ring" />
+          <span className="hero__ring hero__ring--delay" />
           <div className="hero__disc hero__disc--large" />
           <div className="hero__disc hero__disc--medium" />
-          <div className="hero__disc hero__disc--small" />
+          <span className="hero__disc hero__disc--small" />
+          <div className="sound-wave">
+            {WAVE_BARS.map((bar) => (
+              <span
+                className="sound-wave__bar"
+                key={bar}
+                style={{ animationDelay: `${bar * 0.13}s` }}
+              />
+            ))}
+          </div>
         </div>
       </div>
     </section>
