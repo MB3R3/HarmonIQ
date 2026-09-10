@@ -842,7 +842,10 @@ a {
 
   .hero__ring,
   .hero__disc--small,
-  .sound-wave__bar {
+  .sound-wave__bar,
+  .mood-orbit__center,
+  .mood-orbit__button,
+  .pill--era {
     animation: none;
   }
 
@@ -853,5 +856,380 @@ a {
   .hero__disc--small {
     transform: translate(-50%, -50%);
     box-shadow: none;
+  }
+}
+
+/* ------------------------------------------------ */
+/* Discover page                                    */
+/* ------------------------------------------------ */
+
+.discover__header {
+  margin-bottom: var(--space-4);
+}
+
+.discover__subtitle {
+  margin-top: var(--space-1);
+}
+
+.discover__support {
+  margin-top: var(--space-1);
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  max-width: 560px;
+}
+
+/* ------------------------------------------------ */
+/* Selectors                                        */
+/* ------------------------------------------------ */
+
+.selector {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.selector--wide {
+  grid-column: 1 / -1;
+}
+
+.selector__label {
+  padding: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.selector__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.pill--compact {
+  min-height: 36px;
+  padding: 0 14px;
+  font-size: 0.85rem;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ------------------------------------------------ */
+/* Mood orbit                                       */
+/* ------------------------------------------------ */
+
+.mood-orbit {
+  --orbit-radius: clamp(108px, 14vw, 150px);
+  position: relative;
+  width: calc(var(--orbit-radius) * 2);
+  height: calc(var(--orbit-radius) * 2);
+  margin: 0 auto;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+}
+
+.mood-orbit__center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+  width: 108px;
+  height: 108px;
+  border-radius: 50%;
+  background: rgb(211 160 92 / 0.1);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 1.15rem;
+  letter-spacing: -0.01em;
+  text-align: center;
+  animation: mood-center-breathe 4.4s ease-in-out infinite;
+}
+
+.mood-orbit__slot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+}
+
+.mood-orbit__button {
+  --push: 16px;
+  position: absolute;
+  top: -20px;
+  left: -20px;
+  width: max-content;
+  white-space: nowrap;
+  transform: translate(0, 0);
+  animation: mood-pull-push 4.4s ease-in-out infinite;
+}
+
+.mood-orbit__slot:nth-child(even) .mood-orbit__button {
+  animation-delay: 2.2s;
+}
+
+@keyframes mood-center-breathe {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    box-shadow: 0 0 0 0 rgb(211 160 92 / 0);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.06);
+    box-shadow: 0 0 34px 4px rgb(211 160 92 / 0.22);
+  }
+}
+
+@keyframes mood-pull-push {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(calc(var(--push, 0px) * -1), 0);
+  }
+}
+
+/* ------------------------------------------------ */
+/* Genre scroller                                   */
+/* ------------------------------------------------ */
+
+.genre-scroller {
+  display: flex;
+  gap: var(--space-1);
+  overflow-x: auto;
+  padding: 4px 2px 6px;
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.genre-scroller::-webkit-scrollbar {
+  height: 6px;
+}
+
+.genre-scroller::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+.genre-scroller::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ------------------------------------------------ */
+/* Era dim / shine                                  */
+/* ------------------------------------------------ */
+
+.pill--era {
+  animation: era-dim-shine 5.4s ease-in-out infinite;
+}
+
+.pill--era.pill--selected {
+  animation: none;
+}
+
+@keyframes era-dim-shine {
+  0%,
+  100% {
+    color: var(--text-muted);
+    border-color: var(--border);
+  }
+  45% {
+    color: var(--text-muted);
+  }
+  70% {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  92% {
+    color: var(--text);
+    border-color: var(--text-muted);
+  }
+}
+
+/* ------------------------------------------------ */
+/* Discovery builder                                */
+/* ------------------------------------------------ */
+
+.builder {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+}
+
+.builder__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3) var(--space-4);
+}
+
+.builder__style {
+  margin-top: var(--space-4);
+}
+
+.builder__cta {
+  width: 100%;
+  margin-top: var(--space-4);
+}
+
+/* ------------------------------------------------ */
+/* Artist input                                     */
+/* ------------------------------------------------ */
+
+.input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.95rem;
+  transition: border-color 0.2s;
+}
+
+.input::placeholder {
+  color: var(--text-muted);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* ------------------------------------------------ */
+/* Discovery style selector                         */
+/* ------------------------------------------------ */
+
+.style-selector {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-2);
+}
+
+.style-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-height: 96px;
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  text-align: left;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.style-option:hover {
+  border-color: var(--text-muted);
+}
+
+.style-option--selected {
+  border-color: var(--accent);
+  background: rgb(211 160 92 / 0.06);
+}
+
+.style-option__label {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.style-option__hint {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+/* ------------------------------------------------ */
+/* Recent discoveries                               */
+/* ------------------------------------------------ */
+
+.recent {
+  margin-top: var(--space-5);
+}
+
+.recent__heading {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.recent__title {
+  font-size: 1.4rem;
+}
+
+.recent__note {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.recent__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: var(--space-3);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.track {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-2);
+}
+
+.track__artwork {
+  aspect-ratio: 1;
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-2);
+}
+
+.track__title {
+  font-weight: 600;
+}
+
+.track__artist,
+.track__album {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+/* ------------------------------------------------ */
+/* Responsive: discover                              */
+/* ------------------------------------------------ */
+
+@media (max-width: 768px) {
+  .builder__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .selector--wide {
+    grid-column: auto;
+  }
+
+  .style-selector {
+    grid-template-columns: 1fr;
   }
 }
