@@ -1,25 +1,17 @@
 import type { Era } from "../types/discovery";
+import { ERA_OPTIONS } from "../lib/discoveryOptions";
 
 type EraSelectorProps = {
   selected: Era | null;
   onChange: (era: Era | null) => void;
 };
 
-const ERAS: { value: Era; label: string }[] = [
-  { value: "1970s", label: "1970s" },
-  { value: "1980s", label: "1980s" },
-  { value: "1990s", label: "1990s" },
-  { value: "2000s", label: "2000s" },
-  { value: "2010s", label: "2010s" },
-  { value: "2020s", label: "2020s" },
-];
-
 function EraSelector({ selected, onChange }: EraSelectorProps) {
   return (
     <fieldset className="selector">
       <legend className="selector__label">Era</legend>
       <div className="selector__options">
-        {ERAS.map((era, index) => {
+        {ERA_OPTIONS.map((era, index) => {
           const isSelected = selected === era.value;
           return (
             <button

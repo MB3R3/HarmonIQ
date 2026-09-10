@@ -1,31 +1,10 @@
 import type { DiscoveryStyle } from "../types/discovery";
+import { STYLE_OPTIONS } from "../lib/discoveryOptions";
 
 type DiscoveryStyleSelectorProps = {
   selected: DiscoveryStyle;
   onChange: (style: DiscoveryStyle) => void;
 };
-
-const STYLE_OPTIONS: {
-  value: DiscoveryStyle;
-  label: string;
-  hint: string;
-}[] = [
-  {
-    value: "familiar",
-    label: "Familiar",
-    hint: "More music similar to what you already know.",
-  },
-  {
-    value: "balanced",
-    label: "Balanced",
-    hint: "A mix of familiar and new.",
-  },
-  {
-    value: "new",
-    label: "New",
-    hint: "Push further outside your usual listening.",
-  },
-];
 
 function DiscoveryStyleSelector({
   selected,

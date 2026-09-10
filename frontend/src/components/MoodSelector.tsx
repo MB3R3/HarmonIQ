@@ -1,24 +1,16 @@
 import type { Mood } from "../types/discovery";
+import { MOOD_OPTIONS } from "../lib/discoveryOptions";
 
 type MoodSelectorProps = {
   selected: Mood | null;
   onChange: (mood: Mood | null) => void;
 };
 
-const MOODS: { value: Mood; label: string }[] = [
-  { value: "chill", label: "Chill" },
-  { value: "energetic", label: "Energetic" },
-  { value: "melancholic", label: "Melancholic" },
-  { value: "happy", label: "Happy" },
-  { value: "focus", label: "Focus" },
-  { value: "romantic", label: "Romantic" },
-];
-
 const ORBIT_ANGLE = 60;
 
 function MoodSelector({ selected, onChange }: MoodSelectorProps) {
   const centerLabel =
-    MOODS.find((mood) => mood.value === selected)?.label ?? "Mood";
+    MOOD_OPTIONS.find((mood) => mood.value === selected)?.label ?? "Mood";
 
   return (
     <fieldset className="selector selector--wide">
@@ -29,7 +21,7 @@ function MoodSelector({ selected, onChange }: MoodSelectorProps) {
           {centerLabel}
         </span>
 
-        {MOODS.map((mood, index) => {
+        {MOOD_OPTIONS.map((mood, index) => {
           const isSelected = selected === mood.value;
           return (
             <span

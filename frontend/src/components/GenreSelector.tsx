@@ -1,20 +1,12 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 
 import type { Genre } from "../types/discovery";
+import { GENRE_OPTIONS } from "../lib/discoveryOptions";
 
 type GenreSelectorProps = {
   selected: Genre | null;
   onChange: (genre: Genre | null) => void;
 };
-
-const GENRES: { value: Genre; label: string }[] = [
-  { value: "r&b", label: "R&B" },
-  { value: "hip-hop", label: "Hip-Hop" },
-  { value: "pop", label: "Pop" },
-  { value: "rock", label: "Rock" },
-  { value: "jazz", label: "Jazz" },
-  { value: "afrobeats", label: "Afrobeats" },
-];
 
 function GenreSelector({ selected, onChange }: GenreSelectorProps) {
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -57,7 +49,7 @@ function GenreSelector({ selected, onChange }: GenreSelectorProps) {
       <legend className="selector__label">Genre</legend>
 
       <div className="genre-scroller" ref={scrollerRef}>
-        {GENRES.map((genre) => {
+        {GENRE_OPTIONS.map((genre) => {
           const isSelected = selected === genre.value;
           return (
             <button
