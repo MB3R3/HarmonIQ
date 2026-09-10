@@ -75,6 +75,17 @@ CORS_ALLOWED_ORIGINS = [
     # Local React frontend (dev). Add prod origins here, not "*".
     "http://localhost:5173",
 ]
+# The React dev server sends cross-origin requests with credentials so the
+# Django session cookie (SessionAuthentication) is included.
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = [
+    "accept",
+    "authorization",
+    "content-type",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
+]
 
 ROOT_URLCONF = 'config.urls'
 
@@ -148,6 +159,27 @@ REST_FRAMEWORK = {
 # After a successful login, send users somewhere valid instead of
 # Django's default broken /accounts/profile/.
 LOGIN_REDIRECT_URL = "/api/recommendations/discover/"
+
+if DEBUG:
+    # The React app (localhost:5173) and Django API (127.0.0.1:8000) are
+    # different sites, so Django's default SameSite=Lax cookies would NOT be
+    # sent on the frontend's cross-origin fetch requests. Allow the session
+    # and CSRF cookies to flow dev-only so SessionAuthentication keeps
+    # working; CSRF is still fully enforced via the X-CSRFToken header.
+    # Neither SameSite=None nor Secure is applied in production.
+    SESSION_COOKIE_SAMESITE = "None"
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SAMESITE = "None"
+    CSRF_COOKIE_SECURE = True
+
+    # Django 4+ validates the Origin header of every unsafe request against
+    # this list (separate from CORS). Without this, cross-origin POSTs fail
+    # with "Origin checking failed" even when the CSRF header/cookie match.
+    # Add prod frontend origins here too.
+    CSRF_TRUSTED_ORIGINS = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/

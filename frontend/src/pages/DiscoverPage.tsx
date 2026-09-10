@@ -23,6 +23,15 @@ function DiscoverPage() {
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<Recommendation[]>([]);
   const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [savedTracks, setSavedTracks] = useState<string[]>([]);
+
+  const toggleSave = (trackId: string) => {
+    setSavedTracks((prev) =>
+      prev.includes(trackId)
+        ? prev.filter((id) => id !== trackId)
+        : [...prev, trackId]
+    );
+  };
 
   const handleSubmit = async (next: DiscoveryForm) => {
     setError(null);
@@ -66,6 +75,8 @@ function DiscoverPage() {
         isLoading={isLoading}
         error={error}
         results={results}
+        savedTracks={savedTracks}
+        onToggleSave={toggleSave}
         onRetry={() => handleSubmit(form)}
       />
 

@@ -865,6 +865,14 @@ a {
     transform: none;
   }
 
+  .track-card:hover {
+    transform: none;
+  }
+
+  .track-card__art img {
+    transform: none;
+  }
+
   .hero__ring {
     display: none;
   }
@@ -1375,14 +1383,33 @@ a {
   padding: var(--space-4);
 }
 
+.results-panel__header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
 .results-panel__heading {
   font-size: clamp(1.2rem, 2.2vw, 1.5rem);
-  margin-bottom: var(--space-3);
+  margin-bottom: var(--space-1);
+}
+
+.results-panel__summary {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.results-panel__count {
+  color: var(--text-muted);
+  font-size: 0.82rem;
 }
 
 .results-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: var(--space-3);
   margin: 0;
   padding: 0;
@@ -1391,20 +1418,26 @@ a {
 
 .track-card {
   display: flex;
-  gap: var(--space-2);
+  flex-direction: column;
   min-width: 0;
-  padding: var(--space-2);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg);
+  overflow: hidden;
   animation: card-rise 0.35s ease-out both;
+  transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+}
+
+.track-card:hover {
+  border-color: var(--text-muted);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px -18px rgb(0 0 0 / 0.7);
 }
 
 .track-card__art {
-  width: 96px;
-  height: 96px;
-  flex-shrink: 0;
-  border-radius: var(--radius-sm);
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
   overflow: hidden;
   background: var(--bg-elevated);
 }
@@ -1414,6 +1447,11 @@ a {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.track-card:hover .track-card__art img {
+  transform: scale(1.03);
 }
 
 .track-card__art-fallback {
@@ -1422,7 +1460,7 @@ a {
   width: 100%;
   height: 100%;
   color: var(--text-muted);
-  font-size: 1.5rem;
+  font-size: 2.4rem;
   font-weight: 600;
 }
 
@@ -1431,6 +1469,7 @@ a {
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+  padding: var(--space-2);
   flex: 1;
 }
 
@@ -1466,15 +1505,45 @@ a {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: var(--space-2);
   margin-top: auto;
-  padding-top: var(--space-1);
+  padding-top: var(--space-2);
 }
 
 .track-card__score {
   color: var(--text-muted);
   font-size: 0.75rem;
   letter-spacing: 0.02em;
+}
+
+.track-card__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.save-toggle {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  transition: border-color 0.2s, color 0.2s, background-color 0.2s;
+}
+
+.save-toggle:hover {
+  color: var(--text);
+  border-color: var(--text-muted);
+}
+
+.save-toggle--saved {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgb(211 160 92 / 0.1);
 }
 
 .track-card__link {
@@ -1501,6 +1570,12 @@ a {
 /* ------------------------------------------------ */
 /* Responsive: discover                              */
 /* ------------------------------------------------ */
+
+@media (max-width: 1024px) {
+  .results-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
 
 @media (max-width: 768px) {
   .builder__grid {
@@ -1543,10 +1618,5 @@ a {
 
   .results-grid {
     grid-template-columns: 1fr;
-  }
-
-  .track-card__art {
-    width: 84px;
-    height: 84px;
   }
 }

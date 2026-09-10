@@ -1,9 +1,11 @@
 import { useEffect, useRef } from "react";
 
+import RecommendationCard from "./RecommendationCard";
 import {
   ERA_OPTIONS,
   GENRE_OPTIONS,
   MOOD_OPTIONS,
+  STYLE_LABELS,
 } from "../lib/discoveryOptions";
 import type { DiscoveryForm } from "../types/discovery";
 import type { Recommendation } from "../types/recommendation";
@@ -14,6 +16,8 @@ type RecommendationResultsProps = {
   isLoading: boolean;
   error: string | null;
   results: Recommendation[];
+  savedTracks: string[];
+  onToggleSave: (trackId: string) => void;
   onRetry: () => void;
 };
 
@@ -39,12 +43,25 @@ function buildHeading(form: DiscoveryForm): string {
   return "Your discovery";
 }
 
+function buildSummary(form: DiscoveryForm): string[] {
+  const parts: (string | null)[] = [
+    labelFor(MOOD_OPTIONS, form.mood),
+    labelFor(GENRE_OPTIONS, form.genre),
+    labelFor(ERA_OPTIONS, form.era),
+    form.artist.trim() || null,
+    STYLE_LABELS[form.discoveryStyle],
+  ];
+  return parts.filter((part): part is string => part !== null && part.length > 0);
+}
+
 function RecommendationResults({
   form,
   hasSubmitted,
   isLoading,
   error,
   results,
+  savedTracks,
+  onToggleSave,
   onRetry,
 }: RecommendationResultsProps) {
   const panelRef = useRef<HTMLElement>(null);
@@ -102,67 +119,35 @@ function RecommendationResults({
   }
 
   if (results.length > 0) {
+    const summary = buildSummary(form);
+
     return (
       <section
         ref={panelRef}
         className="results-panel"
         aria-label="Your discoveries"
       >
-        <h2 className="results-panel__heading">{buildHeading(form)}</h2>
+        <header className="results-panel__header">
+          <div>
+            <h2 className="results-panel__heading">{buildHeading(form)}</h2>
+            {summary.length > 0 && (
+              <p className="results-panel__summary">{summary.join(" · ")}</p>
+            )}
+          </div>
+          <p className="results-panel__count">
+            {results.length} {results.length === 1 ? "track" : "tracks"} found
+          </p>
+        </header>
+
         <ul className="results-grid">
           {results.map((track, index) => (
-            <li
+            <RecommendationCard
               key={track.spotify_track_id}
-              className="track-card"
-              style={{ animationDelay: `${Math.min(index * 0.06, 0.5)}s` }}
-            >
-              <div className="track-card__art">
-                {track.artwork_url ? (
-                  <img
-                    src={track.artwork_url}
-                    alt={`Album artwork for ${track.album}`}
-                    loading="lazy"
-                  />
-                ) : (
-                  <span
-                    className="track-card__art-fallback"
-                    aria-hidden="true"
-                  >
-                    {track.name.charAt(0) || "♪"}
-                  </span>
-                )}
-              </div>
-
-              <div className="track-card__body">
-                <h3 className="track-card__title">{track.name}</h3>
-                <p className="track-card__artist">{track.artist}</p>
-                <p className="track-card__album">{track.album}</p>
-
-                <ul className="track-card__reasons">
-                  {track.reasons.map((reason) => (
-                    <li key={reason}>{reason}</li>
-                  ))}
-                </ul>
-
-                <div className="track-card__footer">
-                  {typeof track.score === "number" && (
-                    <span className="track-card__score">
-                      match {Math.round(track.score * 100)}%
-                    </span>
-                  )}
-                  {track.spotify_url && (
-                    <a
-                      href={track.spotify_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="track-card__link"
-                    >
-                      Listen on Spotify <span aria-hidden="true">&rarr;</span>
-                    </a>
-                  )}
-                </div>
-              </div>
-            </li>
+              track={track}
+              index={index}
+              isSaved={savedTracks.includes(track.spotify_track_id)}
+              onToggleSave={onToggleSave}
+            />
           ))}
         </ul>
       </section>
@@ -176,13 +161,11 @@ function RecommendationResults({
       aria-label="Your discovery"
     >
       <h2 className="result-panel__title">
-        {hasSubmitted
-          ? "No matches for that direction."
-          : "Your next discovery is waiting."}
+        {hasSubmitted ? "No matches found." : "Your next discovery is waiting."}
       </h2>
       <p className="result-panel__copy">
         {hasSubmitted
-          ? "Try a slightly different mood, genre, era, or artist."
+          ? "Try adjusting your mood, genre, era, or artist and discover again."
           : "Set your direction above and let HarmonIQ find something worth hearing."}
       </p>
     </section>
