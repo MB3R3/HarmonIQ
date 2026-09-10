@@ -1,10 +1,7 @@
+import LandingPage from "./pages/LandingPage";
+
 function App() {
-  return (
-    <main>
-      <h1>HarmonIQ</h1>
-      <p>Discover music on your terms.</p>
-    </main>
-  );
+  return <LandingPage />;
 }
 
 export default App;
