@@ -1411,6 +1411,15 @@ a {
   font-size: 0.82rem;
 }
 
+.results-panel__notice {
+  margin: 0 0 var(--space-2);
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
 .results-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1548,6 +1557,11 @@ a {
   color: var(--accent);
   border-color: var(--accent);
   background: rgb(211 160 92 / 0.1);
+}
+
+.save-toggle:disabled {
+  cursor: default;
+  opacity: 0.75;
 }
 
 .track-card__link {

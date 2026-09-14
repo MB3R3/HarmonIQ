@@ -3,16 +3,20 @@ import type { Recommendation } from "../types/recommendation";
 type RecommendationCardProps = {
   track: Recommendation;
   isSaved: boolean;
-  onToggleSave: (trackId: string) => void;
+  isPending: boolean;
+  onToggleSave: (track: Recommendation) => void;
   index: number;
 };
 
 function RecommendationCard({
   track,
   isSaved,
+  isPending,
   onToggleSave,
   index,
 }: RecommendationCardProps) {
+  const actionLabel = isSaved ? "Saved" : "Save";
+
   return (
     <li
       className="track-card"
@@ -55,11 +59,18 @@ function RecommendationCard({
           <div className="track-card__actions">
             <button
               type="button"
-              className={`save-toggle${isSaved ? " save-toggle--saved" : ""}`}
+              className={`save-toggle${isSaved ? " save-toggle--saved" : ""}${
+                isPending ? " save-toggle--pending" : ""
+              }`}
               aria-pressed={isSaved}
-              onClick={() => onToggleSave(track.spotify_track_id)}
+              disabled={isPending}
+              onClick={() => onToggleSave(track)}
             >
-              {isSaved ? "Saved" : "Save"}
+              {isPending
+                ? isSaved
+                  ? "Removing…"
+                  : "Saving…"
+                : actionLabel}
             </button>
 
             {track.spotify_url && (

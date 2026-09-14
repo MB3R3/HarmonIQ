@@ -3,43 +3,14 @@ import type {
   DiscoveryRequestPayload,
   DiscoveryResponse,
 } from "../types/recommendation";
+import {
+  API_BASE_URL,
+  fetchCsrfToken,
+  isCsrfFailure,
+  resetCsrfToken,
+} from "./api";
 
-const API_BASE_URL = (
-  import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000"
-).replace(/\/$/, "");
-
-const CSRF_URL = `${API_BASE_URL}/api/users/csrf/`;
 const DISCOVER_URL = `${API_BASE_URL}/api/recommendations/discover/`;
-
-let csrfTokenPromise: Promise<string> | null = null;
-
-function getCookie(name: string): string | null {
-  const match = document.cookie.match(
-    new RegExp(`(?:^|; )${name}=([^;]*)`)
-  );
-  return match ? decodeURIComponent(match[1]) : null;
-}
-
-async function fetchCsrfToken(): Promise<string> {
-  if (!csrfTokenPromise) {
-    csrfTokenPromise = fetch(CSRF_URL, {
-      method: "GET",
-      credentials: "include",
-    })
-      .then(async (response) => {
-        if (!response.ok) {
-          throw new Error(`CSRF endpoint returned ${response.status}`);
-        }
-        const data = (await response.json()) as { csrfToken?: string };
-        return data.csrfToken ?? getCookie("csrftoken") ?? "";
-      })
-      .catch((error: unknown) => {
-        csrfTokenPromise = null;
-        throw error;
-      });
-  }
-  return csrfTokenPromise;
-}
 
 function buildPayload(form: DiscoveryForm): DiscoveryRequestPayload {
   return {
@@ -51,16 +22,7 @@ function buildPayload(form: DiscoveryForm): DiscoveryRequestPayload {
   };
 }
 
-function isCsrfFailure(status: number, data: unknown): boolean {
-  if (status !== 403) return false;
-  if (data && typeof data === "object") {
-    const detail = (data as { detail?: unknown }).detail;
-    return typeof detail === "string" && detail.includes("CSRF");
-  }
-  return false;
-}
-
-function translateApiError(status: number, data: unknown): string {
+function translateDiscoverError(status: number, data: unknown): string {
   if (isCsrfFailure(status, data)) {
     return (
       "A security check failed (cookies). Refresh the page and try again — " +
@@ -126,11 +88,11 @@ export async function discoverMusic(
 
     if (!response.ok) {
       if (isCsrfFailure(response.status, data) && attempt === 0) {
-        csrfTokenPromise = null;
+        resetCsrfToken();
         csrfToken = await fetchCsrfToken();
         continue;
       }
-      throw new Error(translateApiError(response.status, data));
+      throw new Error(translateDiscoverError(response.status, data));
     }
 
     return data as DiscoveryResponse;

@@ -1,14 +1,20 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import DiscoveryBuilder from "../components/DiscoveryBuilder";
 import RecentDiscoveries from "../components/RecentDiscoveries";
 import RecommendationResults from "../components/RecommendationResults";
+import {
+  deleteSavedTrack,
+  getSavedTracks,
+  saveTrack,
+} from "../services/savedTracks";
 import { discoverMusic } from "../services/recommendations";
 import type { DiscoveryForm } from "../types/discovery";
 import type {
   PlaylistRecommendation,
   Recommendation,
 } from "../types/recommendation";
+import type { SaveTrackPayload, SavedTrack } from "../types/savedTrack";
 
 const INITIAL_FORM: DiscoveryForm = {
   mood: null,
@@ -27,15 +33,82 @@ function DiscoverPage() {
   const [results, setResults] = useState<Recommendation[]>([]);
   const [playlists, setPlaylists] = useState<PlaylistRecommendation[]>([]);
   const [hasSubmitted, setHasSubmitted] = useState(false);
-  const [savedTracks, setSavedTracks] = useState<string[]>([]);
 
-  const toggleSave = (trackId: string) => {
-    setSavedTracks((prev) =>
-      prev.includes(trackId)
-        ? prev.filter((id) => id !== trackId)
-        : [...prev, trackId]
-    );
-  };
+  const [savedTracks, setSavedTracks] = useState<SavedTrack[]>([]);
+  const [pendingSaves, setPendingSaves] = useState<Set<string>>(new Set());
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const saveErrorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    getSavedTracks()
+      .then(setSavedTracks)
+      .catch(() => {
+        // Silently ignore — saved state will just be empty until next refresh.
+      });
+  }, []);
+
+  const savedIdMap = useRef<Map<string, number>>(new Map());
+  useEffect(() => {
+    const next = new Map<string, number>();
+    for (const record of savedTracks) {
+      next.set(record.spotify_track_id, record.id);
+    }
+    savedIdMap.current = next;
+  }, [savedTracks]);
+
+  const showSaveError = useCallback((message: string) => {
+    if (saveErrorTimer.current) clearTimeout(saveErrorTimer.current);
+    setSaveError(message);
+    saveErrorTimer.current = setTimeout(() => setSaveError(null), 4000);
+  }, []);
+
+  const handleToggleSave = useCallback(
+    async (track: Recommendation) => {
+      const trackId = track.spotify_track_id;
+      if (pendingSaves.has(trackId)) return;
+
+      setPendingSaves((prev) => new Set(prev).add(trackId));
+      setSaveError(null);
+
+      const isSaved = savedIdMap.current.has(trackId);
+
+      try {
+        if (isSaved) {
+          const recordId = savedIdMap.current.get(trackId)!;
+          await deleteSavedTrack(recordId);
+          setSavedTracks((prev) =>
+            prev.filter((r) => r.spotify_track_id !== trackId)
+          );
+        } else {
+          const payload: SaveTrackPayload = {
+            spotify_track_id: track.spotify_track_id,
+            track_name: track.name,
+            artist_name: track.artist,
+            album_name: track.album,
+            artwork_url: track.artwork_url,
+          };
+          const record = await saveTrack(payload);
+          setSavedTracks((prev) => {
+            if (prev.some((r) => r.spotify_track_id === trackId)) return prev;
+            return [...prev, record];
+          });
+        }
+      } catch (err) {
+        showSaveError(
+          err instanceof Error
+            ? err.message
+            : "Unable to save this track. Please try again."
+        );
+      } finally {
+        setPendingSaves((prev) => {
+          const next = new Set(prev);
+          next.delete(trackId);
+          return next;
+        });
+      }
+    },
+    [pendingSaves, showSaveError]
+  );
 
   const handleSubmit = async (next: DiscoveryForm) => {
     setError(null);
@@ -60,6 +133,10 @@ function DiscoverPage() {
     }
   };
 
+  const savedIds = new Set(
+    savedTracks.map((r) => r.spotify_track_id)
+  );
+
   return (
     <section className="discover">
       <header className="discover__header">
@@ -82,8 +159,10 @@ function DiscoverPage() {
         error={error}
         results={results}
         playlists={playlists}
-        savedTracks={savedTracks}
-        onToggleSave={toggleSave}
+        savedIds={savedIds}
+        pendingSaves={pendingSaves}
+        onToggleSave={handleToggleSave}
+        saveError={saveError}
         onRetry={() => handleSubmit(form)}
       />
 

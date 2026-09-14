@@ -21,8 +21,10 @@ type RecommendationResultsProps = {
   error: string | null;
   results: Recommendation[];
   playlists: PlaylistRecommendation[];
-  savedTracks: string[];
-  onToggleSave: (trackId: string) => void;
+  savedIds: Set<string>;
+  pendingSaves: Set<string>;
+  onToggleSave: (track: Recommendation) => void;
+  saveError: string | null;
   onRetry: () => void;
 };
 
@@ -66,8 +68,10 @@ function RecommendationResults({
   error,
   results,
   playlists,
-  savedTracks,
+  savedIds,
+  pendingSaves,
   onToggleSave,
+  saveError,
   onRetry,
 }: RecommendationResultsProps) {
   const panelRef = useRef<HTMLElement>(null);
@@ -153,6 +157,12 @@ function RecommendationResults({
           <p className="results-panel__count">{countText}</p>
         </header>
 
+        {saveError && (
+          <p className="results-panel__notice" role="status" aria-live="polite">
+            {saveError}
+          </p>
+        )}
+
         {results.length > 0 && (
           <ul className="results-grid">
             {results.map((track, index) => (
@@ -160,7 +170,8 @@ function RecommendationResults({
                 key={track.spotify_track_id}
                 track={track}
                 index={index}
-                isSaved={savedTracks.includes(track.spotify_track_id)}
+                isSaved={savedIds.has(track.spotify_track_id)}
+                isPending={pendingSaves.has(track.spotify_track_id)}
                 onToggleSave={onToggleSave}
               />
             ))}
