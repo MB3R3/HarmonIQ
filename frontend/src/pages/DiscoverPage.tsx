@@ -11,12 +11,20 @@ import {
 } from "../services/savedTracks";
 import { discoverMusic } from "../services/recommendations";
 import { getDiscoverySessions } from "../services/discoverySessions";
-import type { DiscoveryForm } from "../types/discovery";
+import { getPreferences } from "../services/preferences";
+import {
+  ERA_OPTIONS,
+  GENRE_OPTIONS,
+  MOOD_OPTIONS,
+  STYLE_OPTIONS,
+} from "../lib/discoveryOptions";
+import type { DiscoveryForm, Era, Genre } from "../types/discovery";
 import type { DiscoverySession } from "../types/discoverySession";
 import type {
   PlaylistRecommendation,
   Recommendation,
 } from "../types/recommendation";
+import type { PreferencesUpdate } from "../types/preferences";
 import type { SaveTrackPayload, SavedTrack } from "../types/savedTrack";
 
 const INITIAL_FORM: DiscoveryForm = {
@@ -26,6 +34,40 @@ const INITIAL_FORM: DiscoveryForm = {
   artist: "",
   discoveryStyle: "balanced",
 };
+
+function prefillFromPreferences(
+  prefs: PreferencesUpdate,
+  current: DiscoveryForm
+): DiscoveryForm | null {
+  const genre = prefs.favorite_genres
+    .map((value) => GENRE_OPTIONS.find((option) => option.value === value)?.value)
+    .find((value): value is Genre => Boolean(value));
+  const era = prefs.preferred_eras
+    .map((value) => ERA_OPTIONS.find((option) => option.value === value)?.value)
+    .find((value): value is Era => Boolean(value));
+  const mood = MOOD_OPTIONS.find(
+    (option) => option.value === prefs.default_mood
+  )?.value;
+  const style = STYLE_OPTIONS.find(
+    (option) => option.value === prefs.discovery_style
+  )?.value;
+
+  const next: DiscoveryForm = {
+    mood: mood ?? current.mood,
+    genre: genre ?? current.genre,
+    era: era ?? current.era,
+    artist: current.artist,
+    discoveryStyle: style ?? current.discoveryStyle,
+  };
+
+  const applied =
+    next.mood !== current.mood ||
+    next.genre !== current.genre ||
+    next.era !== current.era ||
+    next.discoveryStyle !== current.discoveryStyle;
+
+  return applied ? next : null;
+}
 
 function DiscoverPage() {
   const [form, setForm] = useState<DiscoveryForm>(INITIAL_FORM);
@@ -52,6 +94,34 @@ function DiscoverPage() {
   >([]);
   const [isHistoryLoading, setIsHistoryLoading] = useState(true);
   const [historyError, setHistoryError] = useState<string | null>(null);
+
+  const [preferencesApplied, setPreferencesApplied] = useState(false);
+  const formEditedRef = useRef(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    getPreferences()
+      .then((prefs) => {
+        if (cancelled) return;
+        if (formEditedRef.current) return;
+        const prefill = prefillFromPreferences(prefs, INITIAL_FORM);
+        if (prefill) {
+          setForm(prefill);
+          setPreferencesApplied(true);
+        }
+      })
+      .catch(() => {
+        // Preferences are optional on Discover — keep untampered defaults.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleFormChange = useCallback((next: DiscoveryForm) => {
+    formEditedRef.current = true;
+    setForm(next);
+  }, []);
 
   useEffect(() => {
     getDiscoverySessions()
@@ -207,9 +277,12 @@ function DiscoverPage() {
         <p className="discover__support">
           Shape a discovery and HarmonIQ will find something that fits.
         </p>
+        {preferencesApplied && (
+          <p className="discover__prefs-note">Using your preferences</p>
+        )}
       </header>
 
-      <DiscoveryBuilder form={form} onChange={setForm} onSubmit={handleSubmit} />
+      <DiscoveryBuilder form={form} onChange={handleFormChange} onSubmit={handleSubmit} />
 
       <RecommendationResults
         form={submittedForm}
