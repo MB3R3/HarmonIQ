@@ -44,6 +44,27 @@ class DiscoveryRequestSerializer(serializers.Serializer):
         default="balanced",
     )
 
+class PlaylistRecommendationSerializer(serializers.Serializer):
+    spotify_playlist_id = serializers.CharField()
+    name = serializers.CharField()
+    description = serializers.CharField(
+        allow_blank=True,
+    )
+    artwork_url = serializers.URLField(
+        allow_blank=True,
+    )
+    spotify_url = serializers.URLField(
+        allow_blank=True,
+    )
+    owner_name = serializers.CharField(
+        allow_blank=True,
+    )
+    track_count = serializers.IntegerField()
+    score = serializers.FloatField()
+    reasons = serializers.ListField(
+        child=serializers.CharField()
+    )
+
 class RecommendationSerializer(serializers.Serializer):
     spotify_track_id = serializers.CharField()
     name = serializers.CharField()

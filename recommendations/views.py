@@ -1,6 +1,6 @@
 import logging
 
-from rest_framework import status
+from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -10,9 +10,12 @@ from users.models import SpotifyConnection
 from .models import DiscoverySession
 from .serializers import (
     DiscoveryRequestSerializer,
+    DiscoverySessionSerializer,
+    PlaylistRecommendationSerializer,
     RecommendationSerializer,
 )
 from .services.engine import RecommendationEngine
+from .services.playlist_engine import PlaylistEngine
 from .services.recommender import RecommendationRequest
 
 
@@ -109,15 +112,47 @@ class RecommendationDiscoverView(APIView):
             ),
         )
 
+        playlist_engine = PlaylistEngine(spotify)
+
+        try:
+            playlists = playlist_engine.generate(
+                recommendation_request
+            )
+        except Exception:
+            logger.exception(
+                "Playlist generation failed for user %s",
+                request.user,
+            )
+            playlists = []
+
         response_serializer = RecommendationSerializer(
             recommendations,
             many=True,
+        )
+
+        playlist_serializer = (
+            PlaylistRecommendationSerializer(
+                playlists,
+                many=True,
+            )
         )
 
         return Response(
             {
                 "request": data,
                 "results": response_serializer.data,
+                "playlists": playlist_serializer.data,
             },
             status=status.HTTP_200_OK,
+        )
+
+
+class DiscoverySessionListView(generics.ListAPIView):
+    serializer_class = DiscoverySessionSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return (
+            DiscoverySession.objects.filter(user=self.request.user)
+            .order_by("-created_at")[:20]
         )
