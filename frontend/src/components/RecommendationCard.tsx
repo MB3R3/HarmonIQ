@@ -4,7 +4,10 @@ type RecommendationCardProps = {
   track: Recommendation;
   isSaved: boolean;
   isPending: boolean;
+  isSelected: boolean;
   onToggleSave: (track: Recommendation) => void;
+  onToggleSelect: (track: Recommendation) => void;
+  onOpenDetails: (track: Recommendation) => void;
   index: number;
 };
 
@@ -12,7 +15,10 @@ function RecommendationCard({
   track,
   isSaved,
   isPending,
+  isSelected,
   onToggleSave,
+  onToggleSelect,
+  onOpenDetails,
   index,
 }: RecommendationCardProps) {
   const actionLabel = isSaved ? "Saved" : "Save";
@@ -22,6 +28,13 @@ function RecommendationCard({
       className="track-card"
       style={{ animationDelay: `${Math.min(index * 0.06, 0.5)}s` }}
     >
+      <button
+        type="button"
+        className="track-card__open"
+        aria-label={`View details for ${track.name} by ${track.artist}`}
+        onClick={() => onOpenDetails(track)}
+      />
+
       <div className="track-card__art">
         {track.artwork_url ? (
           <img
@@ -57,6 +70,17 @@ function RecommendationCard({
           )}
 
           <div className="track-card__actions">
+            <button
+              type="button"
+              className={`select-toggle${
+                isSelected ? " select-toggle--selected" : ""
+              }`}
+              aria-pressed={isSelected}
+              onClick={() => onToggleSelect(track)}
+            >
+              {isSelected ? "✓ Selected" : "Select"}
+            </button>
+
             <button
               type="button"
               className={`save-toggle${isSaved ? " save-toggle--saved" : ""}${

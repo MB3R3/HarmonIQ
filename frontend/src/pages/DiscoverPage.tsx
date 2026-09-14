@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import CreatePlaylistModal from "../components/CreatePlaylistModal";
 import DiscoveryBuilder from "../components/DiscoveryBuilder";
 import RecentDiscoveries from "../components/RecentDiscoveries";
 import RecommendationResults from "../components/RecommendationResults";
@@ -38,6 +39,11 @@ function DiscoverPage() {
   const [pendingSaves, setPendingSaves] = useState<Set<string>>(new Set());
   const [saveError, setSaveError] = useState<string | null>(null);
   const saveErrorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [selectedTrackIds, setSelectedTrackIds] = useState<Set<string>>(
+    new Set()
+  );
+  const [isCreatePlaylistOpen, setIsCreatePlaylistOpen] = useState(false);
 
   useEffect(() => {
     getSavedTracks()
@@ -110,10 +116,35 @@ function DiscoverPage() {
     [pendingSaves, showSaveError]
   );
 
+  const handleToggleSelect = useCallback((track: Recommendation) => {
+    setSelectedTrackIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(track.spotify_track_id)) {
+        next.delete(track.spotify_track_id);
+      } else {
+        next.add(track.spotify_track_id);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleOpenCreatePlaylist = useCallback(() => {
+    setIsCreatePlaylistOpen(true);
+  }, []);
+
+  const handleCloseCreatePlaylist = useCallback(() => {
+    setIsCreatePlaylistOpen(false);
+  }, []);
+
+  const handlePlaylistCreated = useCallback(() => {
+    setSelectedTrackIds(new Set());
+  }, []);
+
   const handleSubmit = async (next: DiscoveryForm) => {
     setError(null);
     setIsLoading(true);
     setHasSubmitted(true);
+    setSelectedTrackIds(new Set());
 
     try {
       const response = await discoverMusic(next);
@@ -161,12 +192,23 @@ function DiscoverPage() {
         playlists={playlists}
         savedIds={savedIds}
         pendingSaves={pendingSaves}
+        selectedIds={selectedTrackIds}
         onToggleSave={handleToggleSave}
+        onToggleSelect={handleToggleSelect}
+        onCreatePlaylist={handleOpenCreatePlaylist}
         saveError={saveError}
         onRetry={() => handleSubmit(form)}
       />
 
       <RecentDiscoveries />
+
+      {isCreatePlaylistOpen && (
+        <CreatePlaylistModal
+          trackIds={Array.from(selectedTrackIds)}
+          onClose={handleCloseCreatePlaylist}
+          onCreated={handlePlaylistCreated}
+        />
+      )}
     </section>
   );
 }

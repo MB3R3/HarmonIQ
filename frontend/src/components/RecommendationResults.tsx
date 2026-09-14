@@ -1,7 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import PlaylistRecommendationCard from "./PlaylistRecommendationCard";
 import RecommendationCard from "./RecommendationCard";
+import TrackDetailsDrawer from "./TrackDetailsDrawer";
 import {
   ERA_OPTIONS,
   GENRE_OPTIONS,
@@ -23,7 +24,10 @@ type RecommendationResultsProps = {
   playlists: PlaylistRecommendation[];
   savedIds: Set<string>;
   pendingSaves: Set<string>;
+  selectedIds: Set<string>;
   onToggleSave: (track: Recommendation) => void;
+  onToggleSelect: (track: Recommendation) => void;
+  onCreatePlaylist: () => void;
   saveError: string | null;
   onRetry: () => void;
 };
@@ -70,17 +74,31 @@ function RecommendationResults({
   playlists,
   savedIds,
   pendingSaves,
+  selectedIds,
   onToggleSave,
+  onToggleSelect,
+  onCreatePlaylist,
   saveError,
   onRetry,
 }: RecommendationResultsProps) {
   const panelRef = useRef<HTMLElement>(null);
+  const [selectedTrack, setSelectedTrack] = useState<Recommendation | null>(
+    null
+  );
 
   useEffect(() => {
     if (results.length === 0) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     panelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [results.length]);
+
+  const activeTrack =
+    selectedTrack !== null &&
+    results.some(
+      (track) => track.spotify_track_id === selectedTrack.spotify_track_id
+    )
+      ? selectedTrack
+      : null;
 
   if (isLoading) {
     return (
@@ -141,6 +159,9 @@ function RecommendationResults({
         ? `${results.length} ${resultCountLabel} found`
         : `${playlists.length} ${playlistCountLabel} found`;
 
+    const selectedCountLabel =
+      selectedIds.size === 1 ? "track" : "tracks";
+
     return (
       <section
         ref={panelRef}
@@ -164,6 +185,31 @@ function RecommendationResults({
         )}
 
         {results.length > 0 && (
+          <div className="results-action">
+            <div className="results-action__info">
+              <p className="results-action__count">
+                {selectedIds.size === 0
+                  ? "No tracks selected"
+                  : `${selectedIds.size} ${selectedCountLabel} selected`}
+              </p>
+              {selectedIds.size === 0 && (
+                <p className="results-action__hint">
+                  Select tracks to build a playlist from your discoveries.
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              className="button button--primary"
+              disabled={selectedIds.size === 0}
+              onClick={onCreatePlaylist}
+            >
+              Create Playlist
+            </button>
+          </div>
+        )}
+
+        {results.length > 0 && (
           <ul className="results-grid">
             {results.map((track, index) => (
               <RecommendationCard
@@ -172,7 +218,10 @@ function RecommendationResults({
                 index={index}
                 isSaved={savedIds.has(track.spotify_track_id)}
                 isPending={pendingSaves.has(track.spotify_track_id)}
+                isSelected={selectedIds.has(track.spotify_track_id)}
                 onToggleSave={onToggleSave}
+                onToggleSelect={onToggleSelect}
+                onOpenDetails={setSelectedTrack}
               />
             ))}
           </ul>
@@ -199,6 +248,17 @@ function RecommendationResults({
               ))}
             </ul>
           </div>
+        )}
+
+        {activeTrack && (
+          <TrackDetailsDrawer
+            track={activeTrack}
+            isSaved={savedIds.has(activeTrack.spotify_track_id)}
+            isPending={pendingSaves.has(activeTrack.spotify_track_id)}
+            saveError={saveError}
+            onToggleSave={onToggleSave}
+            onClose={() => setSelectedTrack(null)}
+          />
         )}
       </section>
     );
