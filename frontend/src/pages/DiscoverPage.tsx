@@ -10,7 +10,9 @@ import {
   saveTrack,
 } from "../services/savedTracks";
 import { discoverMusic } from "../services/recommendations";
+import { getDiscoverySessions } from "../services/discoverySessions";
 import type { DiscoveryForm } from "../types/discovery";
+import type { DiscoverySession } from "../types/discoverySession";
 import type {
   PlaylistRecommendation,
   Recommendation,
@@ -44,6 +46,32 @@ function DiscoverPage() {
     new Set()
   );
   const [isCreatePlaylistOpen, setIsCreatePlaylistOpen] = useState(false);
+
+  const [discoverySessions, setDiscoverySessions] = useState<
+    DiscoverySession[]
+  >([]);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(true);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+
+  useEffect(() => {
+    getDiscoverySessions()
+      .then(setDiscoverySessions)
+      .catch(() =>
+        setHistoryError("Couldn't load recent discoveries.")
+      )
+      .finally(() => setIsHistoryLoading(false));
+  }, []);
+
+  const retryDiscoveryHistory = useCallback(() => {
+    setHistoryError(null);
+    setIsHistoryLoading(true);
+    getDiscoverySessions()
+      .then(setDiscoverySessions)
+      .catch(() =>
+        setHistoryError("Couldn't load recent discoveries.")
+      )
+      .finally(() => setIsHistoryLoading(false));
+  }, []);
 
   useEffect(() => {
     getSavedTracks()
@@ -200,7 +228,12 @@ function DiscoverPage() {
         onRetry={() => handleSubmit(form)}
       />
 
-      <RecentDiscoveries />
+      <RecentDiscoveries
+        isLoading={isHistoryLoading}
+        error={historyError}
+        sessions={discoverySessions}
+        onRetry={retryDiscoveryHistory}
+      />
 
       {isCreatePlaylistOpen && (
         <CreatePlaylistModal
