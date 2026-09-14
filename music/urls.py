@@ -1,6 +1,10 @@
 from django.urls import path
 
-from .views import SavedTrackListCreateView
+from .views import (
+    CreateSpotifyPlaylistView,
+    SavedTrackDetailView,
+    SavedTrackListCreateView,
+)
 from . import spotify_views
 
 
@@ -9,6 +13,16 @@ urlpatterns = [
         "saved/",
         SavedTrackListCreateView.as_view(),
         name="saved-tracks",
+    ),
+    path(
+        "saved/<int:pk>/",
+        SavedTrackDetailView.as_view(),
+        name="saved-track",
+    ),
+    path(
+        "playlists/create/",
+        CreateSpotifyPlaylistView.as_view(),
+        name="create-spotify-playlist",
     ),
     # HarmonIQ Spotify proxy — React never talks to Spotify directly.
     path("me/", spotify_views.me, name="spotify-me"),

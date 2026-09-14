@@ -10,6 +10,10 @@ class SpotifyAPIError(Exception):
         self.payload = payload
 
 
+# Spotify allows at most 100 track URIs per POST /playlists/{id}/items.
+MAX_ITEMS_PER_PLAYLIST_REQUEST = 100
+
+
 class SpotifyService:
     BASE_URL = "https://api.spotify.com/v1"
 
@@ -45,6 +49,45 @@ class SpotifyService:
 
         return response.json()
 
+    def post(self, endpoint, json_payload=None):
+        response = requests.post(
+            f"{self.BASE_URL}{endpoint}",
+            headers=self.headers,
+            json=json_payload,
+            timeout=10,
+        )
+
+        if not response.ok:
+            try:
+                payload = response.json()
+            except ValueError:
+                payload = {"raw": response.text}
+            raise SpotifyAPIError(
+                f"Spotify API error: {response.status_code}",
+                status_code=response.status_code,
+                payload=payload,
+            )
+
+        return response.json()
+
+    def create_playlist(self, name, description=None, public=False):
+        payload = {"name": name, "public": bool(public)}
+        if description:
+            payload["description"] = description
+        return self.post("/me/playlists", json_payload=payload)
+
+    def add_items_to_playlist(self, playlist_id, track_ids):
+        endpoint = f"/playlists/{playlist_id}/items"
+        uris = [f"spotify:track:{track_id}" for track_id in track_ids]
+
+        results = []
+        for start in range(0, len(uris), MAX_ITEMS_PER_PLAYLIST_REQUEST):
+            batch = uris[start : start + MAX_ITEMS_PER_PLAYLIST_REQUEST]
+            results.append(
+                self.post(endpoint, json_payload={"uris": batch})
+            )
+        return results
+
     def get_current_user(self):
         return self.get("/me")
 
@@ -63,6 +106,20 @@ class SpotifyService:
                 "limit": limit,
             },
         )
+
+    def search_playlists(self, query, limit=10):
+        response = self.search(
+            query=query,
+            search_type="playlist",
+            limit=limit,
+        )
+        return [
+            item
+            for item in response
+            .get("playlists", {})
+            .get("items", [])
+            if item is not None
+        ]
 
     def get_track(self, track_id):
         return self.get(f"/tracks/{track_id}")
