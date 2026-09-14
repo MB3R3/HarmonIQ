@@ -35,7 +35,7 @@ function Sidebar({ activeItem = "discover" }: SidebarProps) {
           {PRIMARY_ITEMS.map((item) => (
             <li key={item.key}>
               <a
-                href="#"
+                href={`#/${item.key}`}
                 className={`sidebar__link${item.key === activeItem ? " sidebar__link--active" : ""}`}
                 aria-current={
                   item.key === activeItem ? "page" : undefined

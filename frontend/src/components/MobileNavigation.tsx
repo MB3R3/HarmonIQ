@@ -30,7 +30,7 @@ function MobileNavigation({ activeItem = "discover" }: MobileNavigationProps) {
       {MOBILE_ITEMS.map((item) => (
         <a
           key={item.key}
-          href="#"
+          href={`#/${item.key}`}
           className={`mobile-nav__link${item.key === activeItem ? " mobile-nav__link--active" : ""}`}
           aria-current={item.key === activeItem ? "page" : undefined}
         >
