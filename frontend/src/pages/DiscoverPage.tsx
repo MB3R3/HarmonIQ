@@ -5,7 +5,10 @@ import RecentDiscoveries from "../components/RecentDiscoveries";
 import RecommendationResults from "../components/RecommendationResults";
 import { discoverMusic } from "../services/recommendations";
 import type { DiscoveryForm } from "../types/discovery";
-import type { Recommendation } from "../types/recommendation";
+import type {
+  PlaylistRecommendation,
+  Recommendation,
+} from "../types/recommendation";
 
 const INITIAL_FORM: DiscoveryForm = {
   mood: null,
@@ -22,6 +25,7 @@ function DiscoverPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<Recommendation[]>([]);
+  const [playlists, setPlaylists] = useState<PlaylistRecommendation[]>([]);
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [savedTracks, setSavedTracks] = useState<string[]>([]);
 
@@ -41,9 +45,11 @@ function DiscoverPage() {
     try {
       const response = await discoverMusic(next);
       setResults(response.results);
+      setPlaylists(response.playlists);
       setSubmittedForm(next);
     } catch (err) {
       setResults([]);
+      setPlaylists([]);
       setError(
         err instanceof Error
           ? err.message
@@ -75,6 +81,7 @@ function DiscoverPage() {
         isLoading={isLoading}
         error={error}
         results={results}
+        playlists={playlists}
         savedTracks={savedTracks}
         onToggleSave={toggleSave}
         onRetry={() => handleSubmit(form)}

@@ -856,20 +856,24 @@ a {
   .mood-orbit__button,
   .pill--era,
   .loading-eq span,
-  .track-card {
+  .track-card,
+  .playlist-card {
     animation: none;
   }
 
-  .track-card {
+  .track-card,
+  .playlist-card {
     opacity: 1;
     transform: none;
   }
 
-  .track-card:hover {
+  .track-card:hover,
+  .playlist-card:hover {
     transform: none;
   }
 
-  .track-card__art img {
+  .track-card__art img,
+  .playlist-card__art img {
     transform: none;
   }
 
@@ -1568,11 +1572,170 @@ a {
 }
 
 /* ------------------------------------------------ */
+/* Playlist recommendations                          */
+/* ------------------------------------------------ */
+
+.results-plays {
+  margin-top: var(--space-4);
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-4);
+}
+
+.results-plays__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.results-plays__heading {
+  font-size: 1.15rem;
+}
+
+.results-plays__count {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.playlist-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.playlist-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  overflow: hidden;
+  animation: card-rise 0.35s ease-out both;
+  transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+}
+
+.playlist-card:hover {
+  border-color: var(--text-muted);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px -18px rgb(0 0 0 / 0.7);
+}
+
+.playlist-card__art {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  overflow: hidden;
+  background: var(--bg-elevated);
+}
+
+.playlist-card__art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.playlist-card:hover .playlist-card__art img {
+  transform: scale(1.03);
+}
+
+.playlist-card__art-fallback {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: var(--text-muted);
+  font-size: 2.4rem;
+  font-weight: 600;
+}
+
+.playlist-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: var(--space-2);
+  flex: 1;
+}
+
+.playlist-card__title {
+  font-size: 1rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.playlist-card__owner,
+.playlist-card__meta {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.playlist-card__description {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.playlist-card__reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.playlist-card__reasons li {
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--accent);
+  font-size: 0.72rem;
+}
+
+.playlist-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: auto;
+  padding-top: var(--space-2);
+}
+
+.playlist-card__link {
+  color: var(--accent);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.playlist-card__link:hover {
+  color: var(--accent-hover);
+}
+
+/* ------------------------------------------------ */
 /* Responsive: discover                              */
 /* ------------------------------------------------ */
 
 @media (max-width: 1024px) {
-  .results-grid {
+  .results-grid,
+  .playlist-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 }
@@ -1616,7 +1779,8 @@ a {
     gap: var(--space-2);
   }
 
-  .results-grid {
+  .results-grid,
+  .playlist-grid {
     grid-template-columns: 1fr;
   }
 }

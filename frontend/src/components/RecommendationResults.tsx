@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 
+import PlaylistRecommendationCard from "./PlaylistRecommendationCard";
 import RecommendationCard from "./RecommendationCard";
 import {
   ERA_OPTIONS,
@@ -8,7 +9,10 @@ import {
   STYLE_LABELS,
 } from "../lib/discoveryOptions";
 import type { DiscoveryForm } from "../types/discovery";
-import type { Recommendation } from "../types/recommendation";
+import type {
+  PlaylistRecommendation,
+  Recommendation,
+} from "../types/recommendation";
 
 type RecommendationResultsProps = {
   form: DiscoveryForm;
@@ -16,6 +20,7 @@ type RecommendationResultsProps = {
   isLoading: boolean;
   error: string | null;
   results: Recommendation[];
+  playlists: PlaylistRecommendation[];
   savedTracks: string[];
   onToggleSave: (trackId: string) => void;
   onRetry: () => void;
@@ -60,6 +65,7 @@ function RecommendationResults({
   isLoading,
   error,
   results,
+  playlists,
   savedTracks,
   onToggleSave,
   onRetry,
@@ -118,8 +124,18 @@ function RecommendationResults({
     );
   }
 
-  if (results.length > 0) {
+  if (results.length > 0 || playlists.length > 0) {
     const summary = buildSummary(form);
+
+    const resultCountLabel =
+      results.length === 1 ? "track" : "tracks";
+    const playlistCountLabel =
+      playlists.length === 1 ? "playlist" : "playlists";
+
+    const countText =
+      results.length > 0
+        ? `${results.length} ${resultCountLabel} found`
+        : `${playlists.length} ${playlistCountLabel} found`;
 
     return (
       <section
@@ -134,22 +150,45 @@ function RecommendationResults({
               <p className="results-panel__summary">{summary.join(" · ")}</p>
             )}
           </div>
-          <p className="results-panel__count">
-            {results.length} {results.length === 1 ? "track" : "tracks"} found
-          </p>
+          <p className="results-panel__count">{countText}</p>
         </header>
 
-        <ul className="results-grid">
-          {results.map((track, index) => (
-            <RecommendationCard
-              key={track.spotify_track_id}
-              track={track}
-              index={index}
-              isSaved={savedTracks.includes(track.spotify_track_id)}
-              onToggleSave={onToggleSave}
-            />
-          ))}
-        </ul>
+        {results.length > 0 && (
+          <ul className="results-grid">
+            {results.map((track, index) => (
+              <RecommendationCard
+                key={track.spotify_track_id}
+                track={track}
+                index={index}
+                isSaved={savedTracks.includes(track.spotify_track_id)}
+                onToggleSave={onToggleSave}
+              />
+            ))}
+          </ul>
+        )}
+
+        {playlists.length > 0 && (
+          <div className="results-plays">
+            <div className="results-plays__header">
+              <h3 className="results-plays__heading">
+                Recommended Playlists
+              </h3>
+              <p className="results-plays__count">
+                {playlists.length} {playlistCountLabel}
+              </p>
+            </div>
+
+            <ul className="playlist-grid">
+              {playlists.map((playlist, index) => (
+                <PlaylistRecommendationCard
+                  key={playlist.spotify_playlist_id}
+                  playlist={playlist}
+                  index={index}
+                />
+              ))}
+            </ul>
+          </div>
+        )}
       </section>
     );
   }

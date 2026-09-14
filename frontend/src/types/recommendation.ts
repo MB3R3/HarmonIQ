@@ -11,6 +11,18 @@ export interface Recommendation {
   reasons: string[];
 }
 
+export interface PlaylistRecommendation {
+  spotify_playlist_id: string;
+  name: string;
+  description: string;
+  artwork_url: string;
+  spotify_url: string;
+  owner_name: string;
+  track_count: number;
+  score: number;
+  reasons: string[];
+}
+
 export interface DiscoveryRequestPayload {
   mood: string;
   genre: string;
@@ -22,4 +34,5 @@ export interface DiscoveryRequestPayload {
 export interface DiscoveryResponse {
   request: DiscoveryRequestPayload;
   results: Recommendation[];
+  playlists: PlaylistRecommendation[];
 }
