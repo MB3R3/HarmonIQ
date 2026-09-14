@@ -5,6 +5,7 @@ from .spotify_views import (
     spotify_callback,
     spotify_login,
 )
+from .views import UserPreferenceView
 
 
 urlpatterns = [
@@ -22,5 +23,10 @@ urlpatterns = [
         "spotify/callback/",
         spotify_callback,
         name="spotify-callback",
+    ),
+    path(
+        "preferences/",
+        UserPreferenceView.as_view(),
+        name="user-preferences",
     ),
 ]
