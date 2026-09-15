@@ -1272,6 +1272,27 @@ a {
   font-size: 0.85rem;
 }
 
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: -9999px;
+  z-index: 200;
+  padding: 10px 18px;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+.skip-link:focus,
+.skip-link:focus-visible {
+  position: fixed;
+  left: var(--space-1);
+  top: var(--space-1);
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;

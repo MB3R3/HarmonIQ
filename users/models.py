@@ -1,4 +1,4 @@
-import requests
+﻿import requests
 from datetime import timedelta
 
 from django.conf import settings
@@ -63,7 +63,6 @@ class SpotifyConnection(models.Model):
 
     spotify_account_id = models.CharField(
         max_length=255,
-        unique=True,
     )
 
     # Spotify's profile/display name. Independent of the HarmonIQ username:

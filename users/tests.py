@@ -263,6 +263,82 @@ class SpotifyCallbackViewTests(TestCase):
         self.assertEqual(self.user.username, "listener")
 
 
+class SpotifySharedAccountRegressionTests(TestCase):
+    """Regression: a Spotify account id must not be globally unique.
+
+    The Spotify callback keys every connection by ``user`` (one HarmonIQ
+    account, one Spotify connection). Before the fix an extra ``UNIQUE`` on
+    ``spotify_account_id`` meant a SECOND HarmonIQ user could never connect
+    the same Spotify account once any other user had connected it; the
+    ``update_or_create`` in the callback raised IntegrityError.
+    """
+
+    def setUp(self):
+        self.user_a = auth.get_user_model().objects.create_user(
+            username="listener-a",
+            password="pw12345",
+        )
+        self.user_b = auth.get_user_model().objects.create_user(
+            username="listener-b",
+            password="pw12345",
+        )
+        self.callback_url = reverse("spotify-callback")
+
+    @staticmethod
+    def _mock_spotify_exchange_and_profile():
+        patch_post = patch(
+            "users.services.spotify.requests.post",
+            return_value=make_token_response(),
+        )
+        patch_get = patch(
+            "music.services.spotify.requests.get",
+            return_value=make_profile_response(),
+        )
+        return patch_post, patch_get
+
+    def _connect(self, user):
+        patch_post, patch_get = self._mock_spotify_exchange_and_profile()
+        with patch_post, patch_get:
+            self.client.force_login(user)
+            return self.client.get(
+                self.callback_url,
+                {"code": "auth-code"},
+            )
+
+    def test_two_django_users_can_connect_the_same_spotify_account(self):
+        # Both users receive the same Spotify profile from the fixture, so
+        # this exercises the exact collision the old unique constraint
+        # rejected with an IntegrityError on the second connect.
+        first = self._connect(self.user_a)
+        second = self._connect(self.user_b)
+
+        self.assertEqual(first.status_code, status.HTTP_302_FOUND)
+        self.assertEqual(second.status_code, status.HTTP_302_FOUND)
+        self.assertEqual(
+            SpotifyConnection.objects.get(user=self.user_a).spotify_account_id,
+            "spotify-user-1",
+        )
+        self.assertEqual(
+            SpotifyConnection.objects.get(user=self.user_b).spotify_account_id,
+            "spotify-user-1",
+        )
+
+    def test_reconnecting_annotated_by_user_not_account_id(self):
+        self._connect(self.user_a)
+
+        self._connect(self.user_a)
+
+        # Reconnecting overwrites the first user's row in place; it must
+        # never leak over to the other user's connection.
+        self.assertEqual(
+            SpotifyConnection.objects.filter(user=self.user_a).count(),
+            1,
+        )
+        self.assertFalse(
+            SpotifyConnection.objects.filter(user=self.user_b).exists(),
+        )
+
+
 class UserPreferenceApiTests(TestCase):
 
     def setUp(self):

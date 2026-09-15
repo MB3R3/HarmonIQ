@@ -7,7 +7,7 @@ function Navbar() {
   const { status, user } = useAuth();
 
   return (
-    <nav className="navbar">
+    <nav className="navbar" aria-label="Main">
       <div className="navbar__inner container">
         <a href="/" className="navbar__brand">
           HarmonIQ
