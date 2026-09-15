@@ -58,6 +58,7 @@ body {
   color: var(--text);
   -webkit-font-smoothing: antialiased;
   line-height: 1.6;
+  overflow-x: clip;
 }
 
 h1,
@@ -1498,7 +1499,6 @@ a {
 }
 
 .input:focus {
-  outline: none;
   border-color: var(--accent);
 }
 
@@ -2194,6 +2194,25 @@ a {
   }
 }
 
+@media (max-width: 430px) {
+  .mood-orbit {
+    --orbit-radius: 76px;
+  }
+
+  .mood-orbit__center {
+    width: 80px;
+    height: 80px;
+    font-size: 0.8rem;
+    line-height: 1.15;
+  }
+
+  .mood-orbit__button {
+    --push: 10px;
+    padding: 0 10px;
+    font-size: 0.8rem;
+  }
+}
+
 /* ------------------------------------------------ */
 /* Playlist selection                                */
 /* ------------------------------------------------ */
@@ -2881,4 +2900,61 @@ a {
 .profile-card__badge {
   cursor: default;
   opacity: 0.9;
+}
+
+/* ------------------------------------------------ */
+/* Touch targets (coarse pointers)                   */
+/* ------------------------------------------------ */
+
+@media (pointer: coarse) {
+  .pill {
+    min-height: 44px;
+  }
+
+  .pill--compact {
+    min-height: 40px;
+  }
+
+  .save-toggle,
+  .select-toggle {
+    min-height: 40px;
+  }
+
+  .modal__close {
+    width: 44px;
+    height: 44px;
+  }
+
+  .track-card__link,
+  .playlist-card__link {
+    display: inline-flex;
+    min-height: 36px;
+    align-items: center;
+  }
+}
+
+/* ------------------------------------------------ */
+/* Reduced motion (consolidated)                    */
+/* ------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  .genre-scroller {
+    scroll-behavior: auto;
+  }
+
+  .button,
+  .pill,
+  .save-toggle,
+  .select-toggle,
+  .style-option,
+  .sidebar__link,
+  .modal__close {
+    transition: none;
+  }
+
+  .style-option:hover,
+  .recent__card:hover,
+  .builder__cta:hover {
+    transform: none;
+  }
 }

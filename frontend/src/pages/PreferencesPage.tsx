@@ -100,6 +100,57 @@ function PreferencesPage() {
   const [clearError, setClearError] = useState<string | null>(null);
   const [clearSuccess, setClearSuccess] = useState(false);
 
+  const clearDialogRef = useRef<HTMLDivElement>(null);
+  const isClearingRef = useRef(false);
+
+  useEffect(() => {
+    if (!isClearConfirmOpen) return;
+
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        if (!isClearingRef.current) setIsClearConfirmOpen(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const root = clearDialogRef.current;
+      if (!root) return;
+      const focusable = Array.from(
+        root.querySelectorAll<HTMLElement>(
+          "button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [href]"
+        )
+      ).filter((el) => el.getAttribute("tabindex") !== "-1");
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      if (event.shiftKey) {
+        if (active === first || !root.contains(active)) {
+          event.preventDefault();
+          last.focus();
+        }
+      } else if (active === last || !root.contains(active)) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    const initialFocus =
+      clearDialogRef.current?.querySelector<HTMLElement>("button");
+    initialFocus?.focus();
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+      previouslyFocused?.focus();
+    };
+  }, [isClearConfirmOpen]);
+
   useEffect(() => {
     getPreferences()
       .then((data) => {
@@ -214,6 +265,7 @@ function PreferencesPage() {
   };
 
   const handleClearConfirm = async () => {
+    isClearingRef.current = true;
     setIsClearing(true);
     setClearError(null);
     setClearSuccess(false);
@@ -228,6 +280,7 @@ function PreferencesPage() {
         "Couldn't clear your preferences. Please try again."
       );
     } finally {
+      isClearingRef.current = false;
       setIsClearing(false);
     }
   };
@@ -463,10 +516,12 @@ function PreferencesPage() {
           }}
         >
           <div
+            ref={clearDialogRef}
             className="modal modal--confirm"
             role="dialog"
             aria-modal="true"
             aria-labelledby="clear-preferences-title"
+            aria-describedby="clear-preferences-copy"
           >
             <div className="modal__header">
               <h2 id="clear-preferences-title" className="modal__title">
@@ -484,7 +539,7 @@ function PreferencesPage() {
             </div>
 
             <div className="modal__body">
-              <p className="modal__confirm-copy">
+              <p id="clear-preferences-copy" className="modal__confirm-copy">
                 This will remove your saved discovery defaults. Your account,
                 Spotify connection and saved tracks will not be affected.
               </p>

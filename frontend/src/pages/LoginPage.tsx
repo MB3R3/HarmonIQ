@@ -72,6 +72,7 @@ function LoginPage() {
                 autoCapitalize="none"
                 required
                 disabled={busy}
+                aria-describedby={error ? "auth-form-error" : undefined}
               />
             </div>
 
@@ -89,11 +90,16 @@ function LoginPage() {
                 autoComplete="current-password"
                 required
                 disabled={busy}
+                aria-describedby={error ? "auth-form-error" : undefined}
               />
             </div>
 
             {error ? (
-              <p className="auth-form__error" role="alert">
+              <p
+                id="auth-form-error"
+                className="auth-form__error"
+                role="alert"
+              >
                 {error}
               </p>
             ) : null}

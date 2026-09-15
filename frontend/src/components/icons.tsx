@@ -11,6 +11,8 @@ const baseProps = {
   strokeWidth: 1.5,
   strokeLinecap: "round" as const,
   strokeLinejoin: "round" as const,
+  "aria-hidden": true,
+  focusable: false,
 };
 
 export function DiscoverIcon({ className }: IconProps) {
