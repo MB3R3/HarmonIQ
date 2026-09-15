@@ -5,7 +5,13 @@ from .spotify_views import (
     spotify_callback,
     spotify_login,
 )
-from .views import UserPreferenceView
+from .views import (
+    CurrentUserView,
+    LoginView,
+    LogoutView,
+    SignupView,
+    UserPreferenceView,
+)
 
 
 urlpatterns = [
@@ -13,6 +19,26 @@ urlpatterns = [
         "csrf/",
         csrf_token,
         name="csrf-token",
+    ),
+    path(
+        "signup/",
+        SignupView.as_view(),
+        name="signup",
+    ),
+    path(
+        "login/",
+        LoginView.as_view(),
+        name="login",
+    ),
+    path(
+        "me/",
+        CurrentUserView.as_view(),
+        name="current-user",
+    ),
+    path(
+        "logout/",
+        LogoutView.as_view(),
+        name="logout",
     ),
     path(
         "spotify/login/",

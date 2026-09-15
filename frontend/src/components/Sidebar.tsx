@@ -1,5 +1,7 @@
+import { useState } from "react";
 import type { ReactNode } from "react";
 
+import { useAuth } from "../context/useAuth";
 import {
   ClockIcon,
   DiscoverIcon,
@@ -26,6 +28,21 @@ const PRIMARY_ITEMS: NavItem[] = [
 ];
 
 function Sidebar({ activeItem = "discover" }: SidebarProps) {
+  const { user, logout } = useAuth();
+  const [isSigningOut, setIsSigningOut] = useState(false);
+
+  const displayName = user?.username || "Your Profile";
+  const avatarInitial = user ? user.username.charAt(0).toUpperCase() : null;
+
+  const handleSignOut = async () => {
+    setIsSigningOut(true);
+    try {
+      await logout();
+    } finally {
+      setIsSigningOut(false);
+    }
+  };
+
   return (
     <aside className="sidebar">
       <div className="sidebar__brand">HarmonIQ</div>
@@ -52,7 +69,11 @@ function Sidebar({ activeItem = "discover" }: SidebarProps) {
 
         <ul className="sidebar__list">
           <li>
-            <a href="#" className="sidebar__link">
+            <a
+              href="#/profile"
+              className={`sidebar__link${activeItem === "profile" ? " sidebar__link--active" : ""}`}
+              aria-current={activeItem === "profile" ? "page" : undefined}
+            >
               <UserIcon />
               <span>Profile</span>
             </a>
@@ -61,12 +82,20 @@ function Sidebar({ activeItem = "discover" }: SidebarProps) {
       </nav>
 
       <div className="sidebar__footer">
-        <a href="#" className="sidebar__user">
+        <div className="sidebar__user">
           <span className="sidebar__avatar">
-            <UserIcon />
+            {avatarInitial ? <span>{avatarInitial}</span> : <UserIcon />}
           </span>
-          <span className="sidebar__user-label">Your Profile</span>
-        </a>
+          <span className="sidebar__user-label">{displayName}</span>
+        </div>
+        <button
+          type="button"
+          className="sidebar__signout"
+          onClick={handleSignOut}
+          disabled={isSigningOut}
+        >
+          {isSigningOut ? "Signing out…" : "Sign out"}
+        </button>
       </div>
     </aside>
   );

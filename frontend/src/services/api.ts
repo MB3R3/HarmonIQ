@@ -68,3 +68,68 @@ export function translateApiError(
 
   return fallback;
 }
+
+export type ApiErrorTranslator = (
+  status: number,
+  data: unknown,
+  fallback: string
+) => string;
+
+export async function apiRequest<T>(
+  url: string,
+  method: string,
+  body?: unknown,
+  translateError?: ApiErrorTranslator
+): Promise<T> {
+  let csrfToken = await fetchCsrfToken();
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    let response: Response;
+    try {
+      const init: RequestInit = {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": csrfToken,
+        },
+        credentials: "include",
+      };
+      if (body !== undefined) {
+        init.body = JSON.stringify(body);
+      }
+      response = await fetch(url, init);
+    } catch {
+      throw new Error(
+        "Unable to reach HarmonIQ. Make sure the server is running " +
+          `at ${API_BASE_URL}.`
+      );
+    }
+
+    let data: unknown;
+    try {
+      data = await response.json();
+    } catch {
+      data = null;
+    }
+
+    if (!response.ok) {
+      if (isCsrfFailure(response.status, data) && attempt === 0) {
+        resetCsrfToken();
+        csrfToken = await fetchCsrfToken();
+        continue;
+      }
+      const translate = translateError ?? translateApiError;
+      throw new Error(
+        translate(
+          response.status,
+          data,
+          "Unable to complete this request. Please try again."
+        )
+      );
+    }
+
+    return data as T;
+  }
+
+  throw new Error("Unable to complete this request. Please try again.");
+}

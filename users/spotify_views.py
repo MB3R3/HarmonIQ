@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
@@ -87,10 +88,16 @@ def spotify_callback(request):
             status=502,
         )
 
+    spotify_display_name = (
+        spotify_profile.get("display_name")
+        or ""
+    )
+
     SpotifyConnection.objects.update_or_create(
         user=request.user,
         defaults={
             "spotify_account_id": spotify_account_id,
+            "spotify_display_name": spotify_display_name,
             "access_token": access_token,
             "refresh_token": refresh_token,
             "token_expires_at": (
@@ -100,9 +107,8 @@ def spotify_callback(request):
         },
     )
 
-    return JsonResponse(
-        {
-            "message": "Spotify account connected successfully.",
-            "spotify_account_id": spotify_account_id,
-        }
+    # Bounce the browser back to the HarmonIQ app so the SPA can refresh
+    # authentication state and show the connected Spotify identity.
+    return redirect(
+        f"{settings.FRONTEND_URL}/#/discover"
     )

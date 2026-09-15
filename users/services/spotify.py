@@ -12,6 +12,17 @@ from music.services.spotify import SpotifyAPIError, SpotifyService  # noqa: F401
 SPOTIFY_AUTHORIZE_URL = "https://accounts.spotify.com/authorize"
 SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token"
 
+# Single source of truth for the scopes HarmonIQ requests from Spotify.
+# These power profile/top-item reads (Discover) and, going forward,
+# playlist creation/modification (Phase 6.12.2+).
+SPOTIFY_SCOPES = [
+    "user-read-private",
+    "user-read-email",
+    "user-top-read",
+    "playlist-modify-private",
+    "playlist-modify-public",
+]
+
 
 class SpotifyAuthService:
 
@@ -22,7 +33,7 @@ class SpotifyAuthService:
             "client_id": settings.SPOTIFY_CLIENT_ID,
             "response_type": "code",
             "redirect_uri": settings.SPOTIFY_REDIRECT_URI,
-            "scope": "user-read-private user-read-email user-top-read",
+            "scope": " ".join(SPOTIFY_SCOPES),
         }
 
         if not params["client_id"] or not params["redirect_uri"]:

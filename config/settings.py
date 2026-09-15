@@ -210,3 +210,10 @@ SPOTIFY_REDIRECT_URI = os.getenv(
     "SPOTIFY_REDIRECT_URI",
     "http://127.0.0.1:8000/api/users/spotify/callback/",
 )
+
+# Where the React SPA lives. The Spotify OAuth callback bounces the browser
+# back here after linking a Spotify account.
+FRONTEND_URL = os.getenv(
+    "FRONTEND_URL",
+    "http://localhost:5173",
+).rstrip("/")

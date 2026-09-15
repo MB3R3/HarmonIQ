@@ -66,6 +66,14 @@ class SpotifyConnection(models.Model):
         unique=True,
     )
 
+    # Spotify's profile/display name. Independent of the HarmonIQ username:
+    # the Django user always keeps the username the person chose at signup.
+    spotify_display_name = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+    )
+
     access_token = models.TextField()
 
     refresh_token = models.TextField()

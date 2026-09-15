@@ -1,0 +1,61 @@
+http://127.0.0.1:8000/api/users/spotify/login/
+
+
+Phase 6.12.2 complete. Nothing committed or pushed.
+Report
+Files created
+None — all changes extended existing modules.
+Files modified
+- music/services/spotify.py — added MAX_ITEMS_PER_PLAYLIST_REQUEST = 100, a post() request helper, and two playlist methods: create_playlist(name, description, public) and add_items_to_playlist(playlist_id, track_ids) (batches into ≤100-URI requests, converts IDs to spotify:track:<id> internally). Reuses the existing SpotifyAPIError and same timeout/headers pattern as get(). No HTTP/auth logic duplicated.
+- music/serializers.py — added CreateSpotifyPlaylistSerializer (request) and CreateSpotifyPlaylistResponseSerializer (response).
+- music/views.py — added CreateSpotifyPlaylistView plus small helpers (_get_user_spotify_connection, _spotify_error_message, _spotify_error_status, _friendly_spotify_error).
+- music/urls.py — added route playlists/create/ → create-spotify-playlist.
+- music/tests.py — 25 new tests + shared mock helpers.
+API endpoint
+POST /api/music/playlists/create/
+Request:
+{
+  "name": "HarmonIQ — Chill R&B",
+  "description": "A playlist created from my HarmonIQ discoveries.",
+  "public": false,
+  "track_ids": ["spotify_track_id_1", "...", "..."]
+}
+name required (≤100 chars, non-blank); track_ids required, ≥1 valid ID, duplicates removed in serializer; description optional (≤300); public defaults to false.
+Validation lives in the serializer: track IDs must match ^[A-Za-z0-9]{22}$ (rejects URLs/malformed IDs), empty list and blank name produce normal DRF 400s.
+Response (201):
+{
+  "playlist": {
+    "id": "...",
+    "name": "...",
+    "spotify_url": "https://open.spotify.com/playlist/...",
+    "public": false,
+    "track_count": 3
+  }
+}
+spotify_url uses Spotify's external_urls.spotify with a constructed fallback. No raw Spotify response blobs returned.
+Spotify endpoints used
+- POST https://api.spotify.com/v1/me/playlists (create; body name/description/public)
+- POST https://api.spotify.com/v1/playlists/{id}/items (add tracks; body uris), modern endpoint, batched at 100/per request, one call per batch — never one call per track.
+Authentication behavior
+permissions.IsAuthenticated (DRF session auth, unchanged CSRF/session behavior — no csrf_exempt). The connection is always request.user.spotify_connection; no account ID accepted from the client, so one user can never use another user's connection. No connection → clean 400 "Spotify not connected".
+Token refresh behavior
+View calls connection.get_valid_access_token(), which refreshes expired tokens through the existing SpotifyConnection.refresh_tokens() / SpotifyAuthService.refresh_access_token path. No manual refresh in the view. Refresh failure (ValueError) → clean 400.
+Error handling
+- Spotify 401 → 401, friendly "connection invalid or expired, reconnect" message.
+- Spotify 403 → 403, "no permission to create/modify playlists, reconnect".
+- Spotify 404 → 404; 429 → 429 "rate-limited"; other statuses (incl. 5xx) → 502 "try again shortly".
+- Add-items failure after successful creation → _spotify_error_status(exc) with an explicit "playlist created but adding tracks failed — playlist is incomplete" error plus the playlist id (track_count 0), so partial success is never reported as full success.
+- No tokens, refresh tokens, or secrets in any response; raw internal exceptions are converted to friendly messages; only Spotify's error.message string is echoed as detail.
+Tests added (25 in music/tests.py)
+Authenticated create success; correct endpoints called (/me/playlists, /playlists/pl-1/items); name/description/public passed through; public respected and default-false; URIs converted to spotify:track:<id>; auth header uses user's token; duplicates removed; 250 tracks batched 100/100/50; empty-list, missing/missing-name, blank-name rejected; URLs rejected as track IDs; unauthenticated → 403; no connection → 400; expired token refreshed via connection (dispatched shared requests.post mock) and refreshed token used in headers + persisted; 401/403/429/500 handled cleanly; no token/Bearer leakage in error bodies; response contains id/name/spotify_url/public/track_count and uses external_urls.spotify; add-items failure returns incomplete error. All Spotify HTTP fully mocked — no real requests.
+Validation results
+- python manage.py check — no issues
+- python manage.py test users recommendations music — 109 passed (was 84; +25)
+- cd frontend && npm run lint — clean
+- npm run build — succeeds; frontend untouched
+Manual test result
+Not performed — no live Spotify-connected session available in this environment. The pre-flight requires: start Django, log in, re-run /api/users/spotify/login/ to reauthorize with the 6.12.1 playlist scopes (if the stored token predates them), then POST valid track IDs to the new endpoint and open the returned URL. All request/response behavior is covered by the mocked suite.
+Known limitations
+- No permanent playlist model persisted in HarmonIQ DB (per spec) — the playlist lives only on Spotify and is returned in the response.
+- Creating a public playlist relies on the playlist-modify-public scope granted in 6.12.1; a pre-6.12.1 connection must be reauthorized or Spotify returns 403 (surface as the friendly reconnect message).
+- No idempotency/deduping against Spotify on retry (a retry after partial failure may create a second playlist); the incomplete-playlist response includes the created id so a future phase can recover explicitly.

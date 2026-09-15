@@ -4,6 +4,8 @@ import CreatePlaylistModal from "../components/CreatePlaylistModal";
 import DiscoveryBuilder from "../components/DiscoveryBuilder";
 import RecentDiscoveries from "../components/RecentDiscoveries";
 import RecommendationResults from "../components/RecommendationResults";
+import { useAuth } from "../context/useAuth";
+import { API_BASE_URL } from "../services/api";
 import {
   deleteSavedTrack,
   getSavedTracks,
@@ -27,6 +29,8 @@ import type {
 import type { PreferencesUpdate } from "../types/preferences";
 import type { SaveTrackPayload, SavedTrack } from "../types/savedTrack";
 
+const SPOTIFY_LOGIN_URL = `${API_BASE_URL}/api/users/spotify/login/`;
+
 const INITIAL_FORM: DiscoveryForm = {
   mood: null,
   genre: null,
@@ -34,6 +38,12 @@ const INITIAL_FORM: DiscoveryForm = {
   artist: "",
   discoveryStyle: "balanced",
 };
+
+function greetingForLocalHour(hour: number): string {
+  if (hour >= 5 && hour < 12) return "Good morning";
+  if (hour >= 12 && hour < 17) return "Good afternoon";
+  return "Good evening";
+}
 
 function prefillFromPreferences(
   prefs: PreferencesUpdate,
@@ -70,6 +80,7 @@ function prefillFromPreferences(
 }
 
 function DiscoverPage() {
+  const { user } = useAuth();
   const [form, setForm] = useState<DiscoveryForm>(INITIAL_FORM);
   const [submittedForm, setSubmittedForm] =
     useState<DiscoveryForm>(INITIAL_FORM);
@@ -266,11 +277,33 @@ function DiscoverPage() {
     savedTracks.map((r) => r.spotify_track_id)
   );
 
+  const greeting = `${greetingForLocalHour(new Date().getHours())}, ${
+    user?.username ?? "music lover"
+  }`;
+
   return (
     <section className="discover">
+      {user && !user.spotify_connected && (
+        <div className="discover__connect">
+          <div className="discover__connect-copy">
+            <p className="discover__connect-title">Connect Spotify</p>
+            <p className="discover__connect-text">
+              Connect your Spotify account to personalize your music
+              discovery.
+            </p>
+          </div>
+          <a
+            href={SPOTIFY_LOGIN_URL}
+            className="button button--primary discover__connect-action"
+          >
+            Connect Spotify
+          </a>
+        </div>
+      )}
+
       <header className="discover__header">
         <p className="eyebrow">Discover</p>
-        <h1 className="discover__title">Good evening.</h1>
+        <h1 className="discover__title">{greeting}.</h1>
         <p className="discover__subtitle">
           What are you in the mood to hear?
         </p>

@@ -1,6 +1,10 @@
+import { useAuth } from "../context/useAuth";
+
 const WAVE_BARS = Array.from({ length: 9 }, (_, index) => index);
 
 function Hero() {
+  const { isAuthenticated } = useAuth();
+
   return (
     <section className="hero">
       <div className="hero__inner container">
@@ -14,12 +18,20 @@ function Hero() {
             era, or artist and discover music that fits your direction.
           </p>
           <div className="hero__actions">
-            <button type="button" className="button button--primary">
-              Start Discovering
-            </button>
-            <button type="button" className="button button--secondary">
-              Connect Spotify
-            </button>
+            {isAuthenticated ? (
+              <a href="#/discover" className="button button--primary">
+                Discover music
+              </a>
+            ) : (
+              <>
+                <a href="#/signup" className="button button--primary">
+                  Get started
+                </a>
+                <a href="#/login" className="button button--secondary">
+                  Log in
+                </a>
+              </>
+            )}
           </div>
         </div>
 

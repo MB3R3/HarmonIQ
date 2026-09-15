@@ -7,6 +7,7 @@ import {
   STYLE_OPTIONS,
 } from "../lib/discoveryOptions";
 import {
+  clearPreferences,
   getPreferences,
   updatePreferences,
 } from "../services/preferences";
@@ -93,6 +94,11 @@ function PreferencesPage() {
   const saveSuccessTimer = useRef<ReturnType<typeof setTimeout> | null>(
     null
   );
+
+  const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
+  const [clearError, setClearError] = useState<string | null>(null);
+  const [clearSuccess, setClearSuccess] = useState(false);
 
   useEffect(() => {
     getPreferences()
@@ -204,6 +210,25 @@ function PreferencesPage() {
       );
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleClearConfirm = async () => {
+    setIsClearing(true);
+    setClearError(null);
+    setClearSuccess(false);
+    try {
+      const defaults = await clearPreferences();
+      setPreferences(defaults);
+      setDraft(defaults);
+      setClearSuccess(true);
+      setIsClearConfirmOpen(false);
+    } catch {
+      setClearError(
+        "Couldn't clear your preferences. Please try again."
+      );
+    } finally {
+      setIsClearing(false);
     }
   };
 
@@ -391,6 +416,101 @@ function PreferencesPage() {
           </button>
         </div>
       </form>
+
+      <section className="preferences__reset">
+        <div className="preferences__reset-copy">
+          <h2 className="preferences__reset-title">Reset preferences</h2>
+          <p className="preferences__reset-text">
+            Clear your saved preferences and return to the default discovery
+            settings.
+          </p>
+          {clearError && (
+            <p
+              className="preferences__notice preferences__notice--error"
+              role="alert"
+            >
+              {clearError}
+            </p>
+          )}
+          {clearSuccess && (
+            <p
+              className="preferences__notice preferences__notice--success"
+              role="status"
+            >
+              Preferences cleared. Defaults restored.
+            </p>
+          )}
+        </div>
+        <button
+          type="button"
+          className="button button--secondary preferences__reset-action"
+          onClick={() => {
+            setClearError(null);
+            setIsClearConfirmOpen(true);
+          }}
+        >
+          Clear preferences
+        </button>
+      </section>
+
+      {isClearConfirmOpen && (
+        <div
+          className="modal-backdrop"
+          onClick={(event) => {
+            if (event.target === event.currentTarget && !isClearing) {
+              setIsClearConfirmOpen(false);
+            }
+          }}
+        >
+          <div
+            className="modal modal--confirm"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="clear-preferences-title"
+          >
+            <div className="modal__header">
+              <h2 id="clear-preferences-title" className="modal__title">
+                Clear your saved preferences?
+              </h2>
+              <button
+                type="button"
+                className="modal__close"
+                aria-label="Close clear preferences dialog"
+                onClick={() => setIsClearConfirmOpen(false)}
+                disabled={isClearing}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="modal__body">
+              <p className="modal__confirm-copy">
+                This will remove your saved discovery defaults. Your account,
+                Spotify connection and saved tracks will not be affected.
+              </p>
+
+              <div className="modal__actions">
+                <button
+                  type="button"
+                  className="button button--secondary"
+                  onClick={() => setIsClearConfirmOpen(false)}
+                  disabled={isClearing}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="button button--danger"
+                  onClick={handleClearConfirm}
+                  disabled={isClearing}
+                >
+                  {isClearing ? "Clearing…" : "Clear preferences"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

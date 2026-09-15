@@ -2,6 +2,7 @@ from datetime import timedelta
 from unittest.mock import Mock, patch
 from urllib.parse import parse_qs, urlparse
 
+from django.conf import settings
 from django.contrib import auth
 from django.test import TestCase
 from django.urls import reverse
@@ -188,14 +189,20 @@ class SpotifyCallbackViewTests(TestCase):
                 {"code": "auth-code"},
             )
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # The browser is bounced back to the HarmonIQ frontend so the SPA
+        # can refresh authentication state after connecting.
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
         self.assertEqual(
-            response.json()["message"],
-            "Spotify account connected successfully.",
+            response.url,
+            f"{settings.FRONTEND_URL}/#/discover",
         )
 
         connection = SpotifyConnection.objects.get(user=self.user)
         self.assertEqual(connection.spotify_account_id, "spotify-user-1")
+        self.assertEqual(
+            connection.spotify_display_name,
+            "Spotify User",
+        )
         self.assertEqual(connection.access_token, "new-access-token")
         self.assertEqual(connection.refresh_token, "new-refresh-token")
 
@@ -217,7 +224,7 @@ class SpotifyCallbackViewTests(TestCase):
                 {"code": "auth-code"},
             )
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
         self.assertEqual(SpotifyConnection.objects.count(), 1)
         connection = SpotifyConnection.objects.get(user=self.user)
         # Reauthorization keeps the connection bound to the same user.
@@ -233,14 +240,27 @@ class SpotifyCallbackViewTests(TestCase):
             response = self.client.get(
                 self.callback_url,
                 {"code": "auth-code"},
-)
+            )
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
         connection = SpotifyConnection.objects.get(user=self.user)
         self.assertGreater(
             connection.token_expires_at,
             timezone.now(),
         )
+
+    def test_callback_does_not_change_the_django_username(self):
+        patch_post, patch_get = self._mock_spotify_exchange_and_profile()
+
+        with patch_post, patch_get:
+            self.client.force_login(self.user)
+            self.client.get(
+                self.callback_url,
+                {"code": "auth-code"},
+            )
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.username, "listener")
 
 
 class UserPreferenceApiTests(TestCase):
@@ -432,3 +452,544 @@ class UserPreferenceApiTests(TestCase):
         self.assertEqual(body["default_mood"], "chill")
         self.assertEqual(body["discovery_style"], "balanced")
         self.assertEqual(body["recommendation_frequency"], "weekly")
+
+    def _delete(self, user):
+        self.client.force_login(user)
+        return self.client.delete(
+            self.url,
+            content_type="application/json",
+        )
+
+    def test_clear_preferences_resets_to_defaults(self):
+        self._put(self.user_a, self._payload())
+
+        response = self._delete(self.user_a)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        body = response.json()
+        self.assertEqual(body["favorite_genres"], [])
+        self.assertEqual(body["preferred_eras"], [])
+        self.assertEqual(body["default_mood"], "")
+        self.assertEqual(body["discovery_style"], "balanced")
+        self.assertEqual(body["recommendation_frequency"], "on_demand")
+
+    def test_cleared_preferences_persist_as_defaults(self):
+        self._put(self.user_a, self._payload())
+        self._delete(self.user_a)
+
+        response = self.client.get(self.url)
+        body = response.json()
+        self.assertEqual(body["favorite_genres"], [])
+        self.assertEqual(body["preferred_eras"], [])
+        self.assertEqual(body["default_mood"], "")
+        self.assertEqual(body["discovery_style"], "balanced")
+        self.assertEqual(body["recommendation_frequency"], "on_demand")
+
+    def test_clear_preferences_keeps_preference_record(self):
+        self._put(self.user_a, self._payload())
+        self._delete(self.user_a)
+
+        self.assertTrue(
+            UserPreference.objects.filter(user=self.user_a).exists()
+        )
+
+    def test_clear_preferences_does_not_delete_the_account(self):
+        self._put(self.user_a, self._payload())
+
+        response = self._delete(self.user_a)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(
+            auth.get_user_model().objects.filter(pk=self.user_a.pk).exists()
+        )
+
+    def test_clear_preferences_does_not_touch_spotify_connection(self):
+        SpotifyConnection.objects.create(
+            user=self.user_a,
+            spotify_account_id="spotify-user-1",
+            spotify_display_name="Essien Mbereidem",
+            access_token="access",
+            refresh_token="refresh",
+            token_expires_at=timezone.now() + timedelta(hours=1),
+        )
+        self._put(self.user_a, self._payload())
+
+        response = self._delete(self.user_a)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        connection = SpotifyConnection.objects.get(user=self.user_a)
+        self.assertEqual(connection.spotify_account_id, "spotify-user-1")
+        self.assertEqual(
+            connection.spotify_display_name,
+            "Essien Mbereidem",
+        )
+
+    def test_clear_preferences_only_affects_the_owning_user(self):
+        self._put(self.user_a, self._payload())
+        self._put(
+            self.user_b,
+            self._payload(
+                favorite_genres=["rock"],
+                default_mood="happy",
+            ),
+        )
+
+        self._delete(self.user_a)
+
+        preference_b = UserPreference.objects.get(user=self.user_b)
+        self.assertEqual(preference_b.favorite_genres, ["rock"])
+        self.assertEqual(preference_b.default_mood, "happy")
+
+    def test_unauthenticated_clear_preferences_is_rejected(self):
+        response = self.client.delete(
+            self.url,
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class SignupApiTests(TestCase):
+
+    def setUp(self):
+        self.url = reverse("signup")
+
+    @staticmethod
+    def _payload(**overrides):
+        payload = {
+            "username": "essien",
+            "email": "essien@example.com",
+            "password": "SecurePass123!",
+            "password_confirm": "SecurePass123!",
+        }
+        payload.update(overrides)
+        return payload
+
+    def _post(self, payload):
+        return self.client.post(
+            self.url,
+            data=payload,
+            content_type="application/json",
+        )
+
+    def test_successful_signup_creates_user_and_session(self):
+        response = self._post(self._payload())
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        body = response.json()
+        self.assertTrue(body["authenticated"])
+        self.assertEqual(body["user"]["username"], "essien")
+        self.assertEqual(
+            body["user"]["email"],
+            "essien@example.com",
+        )
+
+        User = auth.get_user_model()
+        user = User.objects.get(username="essien")
+        self.assertEqual(user.email, "essien@example.com")
+        self.assertTrue(user.check_password("SecurePass123!"))
+
+        # The session is established — /api/users/me/ sees the new user.
+        me_response = self.client.get(reverse("current-user"))
+        self.assertTrue(me_response.json()["authenticated"])
+        self.assertEqual(me_response.json()["user"]["username"], "essien")
+
+    def test_signup_hashes_the_password(self):
+        self._post(self._payload())
+
+        user = auth.get_user_model().objects.get(username="essien")
+        self.assertNotEqual(user.password, "SecurePass123!")
+        self.assertTrue(user.password.startswith(("pbkdf2_", "argon2")))
+
+    def test_signup_response_never_returns_the_password(self):
+        response = self._post(self._payload())
+
+        self.assertNotIn("password", str(response.json()))
+        self.assertNotIn("password_confirm", str(response.json()))
+
+    def test_duplicate_username_is_rejected(self):
+        auth.get_user_model().objects.create_user(
+            username="essien",
+            password="OtherPass123!",
+            email="other@example.com",
+        )
+
+        response = self._post(self._payload())
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(response.json()["authenticated"])
+        self.assertIn("username is already taken", response.json()["error"])
+        self.assertEqual(
+            auth.get_user_model().objects.filter(
+                username="essien"
+            ).count(),
+            1,
+        )
+
+    def test_duplicate_email_is_rejected_case_insensitively(self):
+        auth.get_user_model().objects.create_user(
+            username="someone-else",
+            password="OtherPass123!",
+            email="ESSIEN@EXAMPLE.COM",
+        )
+
+        response = self._post(self._payload())
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("email already exists", response.json()["error"])
+
+        User = auth.get_user_model()
+        self.assertFalse(User.objects.filter(username="essien").exists())
+
+    def test_password_confirmation_mismatch_is_rejected(self):
+        response = self._post(
+            self._payload(password_confirm="DifferentPass123!")
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("do not match", response.json()["error"])
+        self.assertFalse(
+            auth.get_user_model()
+            .objects.filter(username="essien")
+            .exists()
+        )
+
+    def test_missing_password_confirmation_is_rejected(self):
+        response = self._post(
+            self._payload(password_confirm="")
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(auth.get_user_model().objects.filter(
+            username="essien"
+        ).exists())
+
+    def test_missing_required_fields_are_rejected(self):
+        for key in ("username", "email", "password"):
+            payload = self._payload()
+            payload.pop(key)
+            response = self._post(payload)
+            self.assertEqual(
+                response.status_code,
+                status.HTTP_400_BAD_REQUEST,
+                f"expected {key} to be required",
+            )
+            self.assertFalse(response.json()["authenticated"])
+
+    def test_invalid_email_is_rejected(self):
+        response = self._post(self._payload(email="not-an-email"))
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("valid email", response.json()["error"])
+        self.assertFalse(
+            auth.get_user_model()
+            .objects.filter(username="essien")
+            .exists()
+        )
+
+    def test_unauthenticated_signup_is_allowed(self):
+        # No force_login here — anyone may create an account.
+        response = self._post(self._payload())
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(response.json()["authenticated"])
+
+    def test_weak_password_is_rejected(self):
+        response = self._post(self._payload(password="12345", password_confirm="12345"))
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(response.json()["authenticated"])
+        self.assertFalse(
+            auth.get_user_model()
+            .objects.filter(username="essien")
+            .exists()
+        )
+
+    def test_signup_username_is_independent_of_spotify_identity(self):
+        response = self._post(self._payload())
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        # New accounts have no Spotify identity yet.
+        body = response.json()["user"]
+        self.assertFalse(body["spotify_connected"])
+        self.assertIsNone(body["spotify_display_name"])
+        self.assertEqual(body["username"], "essien")
+
+
+class LogoutApiTests(TestCase):
+
+    def setUp(self):
+        self.user = auth.get_user_model().objects.create_user(
+            username="listener",
+            password="pw12345",
+            email="listener@example.com",
+        )
+        self.url = reverse("logout")
+
+    def test_logout_ends_the_django_session(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            self.url,
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        body = response.json()
+        self.assertFalse(body["authenticated"])
+        self.assertIsNone(body["user"])
+
+        me_response = self.client.get(reverse("current-user"))
+        me_body = me_response.json()
+        self.assertFalse(me_body["authenticated"])
+        self.assertIsNone(me_body["user"])
+
+    def test_logout_of_an_anonymous_session_is_harmless(self):
+        response = self.client.post(
+            self.url,
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        body = response.json()
+        self.assertFalse(body["authenticated"])
+        self.assertIsNone(body["user"])
+
+    def test_logout_response_contains_no_user_data(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(self.url)
+
+        self.assertEqual(response.json()["user"], None)
+
+
+class LoginApiTests(TestCase):
+
+    def setUp(self):
+        self.user = auth.get_user_model().objects.create_user(
+            username="listener",
+            password="pw12345",
+            email="listener@example.com",
+        )
+        self.url = reverse("login")
+
+    def _post(self, payload):
+        return self.client.post(
+            self.url,
+            data=payload,
+            content_type="application/json",
+        )
+
+    def test_valid_credentials_start_a_session(self):
+        response = self._post(
+            {"username": "listener", "password": "pw12345"}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        body = response.json()
+        self.assertTrue(body["authenticated"])
+        self.assertEqual(body["user"]["username"], "listener")
+        self.assertEqual(body["user"]["email"], "listener@example.com")
+
+        me_response = self.client.get(reverse("current-user"))
+        self.assertTrue(me_response.json()["authenticated"])
+
+    def test_invalid_credentials_return_401(self):
+        response = self._post(
+            {"username": "listener", "password": "wrong-password"}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        body = response.json()
+        self.assertFalse(body["authenticated"])
+        self.assertEqual(body["error"], "Invalid username or password.")
+
+        me_response = self.client.get(reverse("current-user"))
+        self.assertFalse(me_response.json()["authenticated"])
+
+    def test_unknown_username_returns_401(self):
+        response = self._post(
+            {"username": "nobody", "password": "pw12345"}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertFalse(response.json()["authenticated"])
+
+    def test_missing_credentials_return_400(self):
+        response = self._post({"username": "listener"})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(response.json()["authenticated"])
+
+        response = self._post({"password": "pw12345"})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(response.json()["authenticated"])
+
+    def test_login_marks_spotify_connected(self):
+        SpotifyConnection.objects.create(
+            user=self.user,
+            spotify_account_id="spotify-user-1",
+            access_token="access",
+            refresh_token="refresh",
+            token_expires_at=timezone.now() + timedelta(hours=1),
+        )
+
+        response = self._post(
+            {"username": "listener", "password": "pw12345"}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.json()["user"]["spotify_connected"])
+
+    def test_login_response_never_exposes_password(self):
+        response = self._post(
+            {"username": "listener", "password": "pw12345"}
+        )
+
+        self.assertEqual(
+            set(response.json()["user"].keys()),
+            {
+                "id",
+                "username",
+                "email",
+                "spotify_connected",
+                "spotify_display_name",
+            },
+        )
+
+
+class CurrentUserApiTests(TestCase):
+
+    def setUp(self):
+        self.user = auth.get_user_model().objects.create_user(
+            username="listener",
+            password="pw12345",
+            email="listener@example.com",
+        )
+        self.url = reverse("current-user")
+
+    def test_authenticated_user_gets_safe_profile(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(
+            self.url,
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        body = response.json()
+        self.assertTrue(body["authenticated"])
+        self.assertEqual(body["user"]["id"], self.user.pk)
+        self.assertEqual(body["user"]["username"], "listener")
+        self.assertEqual(body["user"]["email"], "listener@example.com")
+
+    def test_authenticated_response_never_exposes_password(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(
+            set(response.json()["user"].keys()),
+            {
+                "id",
+                "username",
+                "email",
+                "spotify_connected",
+                "spotify_display_name",
+            },
+        )
+
+    def test_unauthenticated_user_gets_false_status(self):
+        response = self.client.get(
+            self.url,
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        body = response.json()
+        self.assertFalse(body["authenticated"])
+        self.assertIsNone(body["user"])
+
+    def test_spotify_connected_is_false_without_connection(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(self.url)
+
+        self.assertTrue(response.json()["authenticated"])
+        self.assertFalse(response.json()["user"]["spotify_connected"])
+
+    def test_spotify_connected_is_true_with_connection(self):
+        SpotifyConnection.objects.create(
+            user=self.user,
+            spotify_account_id="spotify-user-1",
+            access_token="access",
+            refresh_token="refresh",
+            token_expires_at=timezone.now() + timedelta(hours=1),
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(self.url)
+
+        self.assertTrue(response.json()["authenticated"])
+        self.assertTrue(response.json()["user"]["spotify_connected"])
+
+    def test_spotify_display_name_is_null_without_connection(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(self.url)
+
+        self.assertIsNone(
+            response.json()["user"]["spotify_display_name"]
+        )
+
+    def test_spotify_display_name_uses_spotify_identity_not_username(self):
+        SpotifyConnection.objects.create(
+            user=self.user,
+            spotify_account_id="spotify-user-1",
+            spotify_display_name="Essien Mbereidem",
+            access_token="access",
+            refresh_token="refresh",
+            token_expires_at=timezone.now() + timedelta(hours=1),
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(self.url)
+
+        body = response.json()["user"]
+        # The Django username is untouched; the Spotify display name is a
+        # separate identity exposed alongside it.
+        self.assertEqual(body["username"], "listener")
+        self.assertEqual(
+            body["spotify_display_name"],
+            "Essien Mbereidem",
+        )
+
+    def test_profile_never_exposes_spotify_tokens(self):
+        SpotifyConnection.objects.create(
+            user=self.user,
+            spotify_account_id="spotify-user-1",
+            access_token="super-secret-access",
+            refresh_token="super-secret-refresh",
+            token_expires_at=timezone.now() + timedelta(hours=1),
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(self.url)
+
+        self.assertNotIn("access_token", str(response.json()))
+        self.assertNotIn("refresh_token", str(response.json()))
+
+    def test_each_user_sees_their_own_profile(self):
+        other = auth.get_user_model().objects.create_user(
+            username="other",
+            password="pw12345",
+            email="other@example.com",
+        )
+        self.client.force_login(other)
+
+        response = self.client.get(self.url)
+
+        self.assertTrue(response.json()["authenticated"])
+        self.assertEqual(response.json()["user"]["username"], "other")
+        self.assertEqual(response.json()["user"]["email"], "other@example.com")
