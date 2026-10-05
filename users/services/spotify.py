@@ -27,7 +27,7 @@ SPOTIFY_SCOPES = [
 class SpotifyAuthService:
 
     @staticmethod
-    def get_authorization_url():
+    def get_authorization_url(state=None):
 
         params = {
             "client_id": settings.SPOTIFY_CLIENT_ID,
@@ -40,6 +40,11 @@ class SpotifyAuthService:
             raise ValueError(
                 "Missing SPOTIFY_CLIENT_ID or SPOTIFY_REDIRECT_URI. Check your .env and config/settings.py."
             )
+
+        if state:
+            # Opaque CSRF token echoed back by Spotify so the callback can
+            # prove the authorization response belongs to this browser.
+            params["state"] = state
 
         return f"{SPOTIFY_AUTHORIZE_URL}?{urlencode(params)}"
     

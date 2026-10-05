@@ -14,6 +14,19 @@ from .services.spotify import (
     SPOTIFY_SCOPES,
     SpotifyAuthService,
 )
+from .spotify_views import SPOTIFY_OAUTH_STATE_SESSION_KEY
+
+
+VALID_OAUTH_STATE = "test-oauth-state-value"
+
+
+def prime_oauth_state(client, state=VALID_OAUTH_STATE):
+    """Seed the session with the state spotify_login would have stored."""
+
+    session = client.session
+    session[SPOTIFY_OAUTH_STATE_SESSION_KEY] = state
+    session.save()
+    return state
 
 
 def make_token_response(
@@ -43,8 +56,8 @@ def make_profile_response():
 
 class SpotifyAuthServiceTests(TestCase):
 
-    def _authorization_params(self):
-        url = SpotifyAuthService.get_authorization_url()
+    def _authorization_params(self, state=None):
+        url = SpotifyAuthService.get_authorization_url(state=state)
         parsed = urlparse(url)
         return parse_qs(parsed.query)
 
@@ -110,6 +123,45 @@ class SpotifyAuthServiceTests(TestCase):
                 with self.assertRaises(ValueError):
                     SpotifyAuthService.get_authorization_url()
 
+    def test_authorization_url_includes_state_when_provided(self):
+        with patch("users.services.spotify.settings.SPOTIFY_CLIENT_ID", "cid"):
+            with patch(
+                "users.services.spotify.settings.SPOTIFY_REDIRECT_URI",
+                "http://localhost/callback",
+            ):
+                params = self._authorization_params(
+                    state="state-abc-123",
+                )
+
+        self.assertEqual(params["state"], ["state-abc-123"])
+
+    def test_authorization_url_omits_state_when_not_provided(self):
+        with patch("users.services.spotify.settings.SPOTIFY_CLIENT_ID", "cid"):
+            with patch(
+                "users.services.spotify.settings.SPOTIFY_REDIRECT_URI",
+                "http://localhost/callback",
+            ):
+                params = self._authorization_params()
+
+        self.assertNotIn("state", params)
+
+    def test_authorization_url_does_not_leak_the_client_secret(self):
+        with patch("users.services.spotify.settings.SPOTIFY_CLIENT_ID", "cid"):
+            with patch(
+                "users.services.spotify.settings.SPOTIFY_CLIENT_SECRET",
+                "super-secret",
+            ):
+                with patch(
+                    "users.services.spotify.settings.SPOTIFY_REDIRECT_URI",
+                    "http://localhost/callback",
+                ):
+                    url = SpotifyAuthService.get_authorization_url(
+                        state="state-abc-123",
+                    )
+
+        self.assertNotIn("super-secret", url)
+        self.assertNotIn("client_secret", url)
+
 
 class SpotifyLoginViewTests(TestCase):
 
@@ -143,6 +195,106 @@ class SpotifyLoginViewTests(TestCase):
         scopes = params["scope"][0].split()
         self.assertIn("playlist-modify-private", scopes)
         self.assertIn("playlist-modify-public", scopes)
+
+    @staticmethod
+    def _patch_spotify_config():
+        return (
+            patch("users.services.spotify.settings.SPOTIFY_CLIENT_ID", "cid"),
+            patch(
+                "users.services.spotify.settings.SPOTIFY_REDIRECT_URI",
+                "http://localhost/callback",
+            ),
+        )
+
+    def test_login_redirect_includes_state(self):
+        user = auth.get_user_model().objects.create_user(
+            username="listener",
+            password="pw12345",
+        )
+        self.client.force_login(user)
+
+        patch_client_id, patch_redirect = self._patch_spotify_config()
+
+        with patch_client_id, patch_redirect:
+            response = self.client.get(self.login_url)
+
+        params = parse_qs(urlparse(response.url).query)
+
+        self.assertIn("state", params)
+        self.assertTrue(params["state"][0])
+
+    def test_login_stores_state_in_the_user_session(self):
+        user = auth.get_user_model().objects.create_user(
+            username="listener",
+            password="pw12345",
+        )
+        self.client.force_login(user)
+
+        patch_client_id, patch_redirect = self._patch_spotify_config()
+
+        with patch_client_id, patch_redirect:
+            response = self.client.get(self.login_url)
+
+        url_state = parse_qs(urlparse(response.url).query)["state"][0]
+        session_state = self.client.session[SPOTIFY_OAUTH_STATE_SESSION_KEY]
+
+        self.assertEqual(session_state, url_state)
+
+    def test_login_state_is_long_and_unpredictable(self):
+        user = auth.get_user_model().objects.create_user(
+            username="listener",
+            password="pw12345",
+        )
+        self.client.force_login(user)
+
+        patch_client_id, patch_redirect = self._patch_spotify_config()
+
+        with patch_client_id, patch_redirect:
+            response = self.client.get(self.login_url)
+
+        url_state = parse_qs(urlparse(response.url).query)["state"][0]
+
+        # secrets.token_urlsafe(32) yields 43 url-safe characters.
+        self.assertEqual(len(url_state), 43)
+
+    def test_login_issues_a_new_state_for_each_attempt(self):
+        user = auth.get_user_model().objects.create_user(
+            username="listener",
+            password="pw12345",
+        )
+        self.client.force_login(user)
+
+        patch_client_id, patch_redirect = self._patch_spotify_config()
+
+        with patch_client_id, patch_redirect:
+            first = self.client.get(self.login_url)
+            second = self.client.get(self.login_url)
+
+        first_state = parse_qs(urlparse(first.url).query)["state"][0]
+        second_state = parse_qs(urlparse(second.url).query)["state"][0]
+
+        self.assertNotEqual(first_state, second_state)
+        self.assertEqual(
+            self.client.session[SPOTIFY_OAUTH_STATE_SESSION_KEY],
+            second_state,
+        )
+
+    def test_login_state_is_not_reused_after_a_failed_start(self):
+        user = auth.get_user_model().objects.create_user(
+            username="listener",
+            password="pw12345",
+        )
+        self.client.force_login(user)
+
+        with patch("users.services.spotify.settings.SPOTIFY_CLIENT_ID", ""):
+            with patch(
+                "users.services.spotify.settings.SPOTIFY_REDIRECT_URI",
+                "http://localhost/callback",
+            ):
+                response = self.client.get(self.login_url)
+
+        self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
+        self.assertNotIn(SPOTIFY_OAUTH_STATE_SESSION_KEY, self.client.session)
 
 
 class SpotifyCallbackViewTests(TestCase):
@@ -184,9 +336,10 @@ class SpotifyCallbackViewTests(TestCase):
 
         with patch_post, patch_get:
             self.client.force_login(self.user)
+            state = prime_oauth_state(self.client)
             response = self.client.get(
                 self.callback_url,
-                {"code": "auth-code"},
+                {"code": "auth-code", "state": state},
             )
 
         # The browser is bounced back to the HarmonIQ frontend so the SPA
@@ -219,9 +372,10 @@ class SpotifyCallbackViewTests(TestCase):
 
         with patch_post, patch_get:
             self.client.force_login(self.user)
+            state = prime_oauth_state(self.client)
             response = self.client.get(
                 self.callback_url,
-                {"code": "auth-code"},
+                {"code": "auth-code", "state": state},
             )
 
         self.assertEqual(response.status_code, status.HTTP_302_FOUND)
@@ -237,9 +391,10 @@ class SpotifyCallbackViewTests(TestCase):
 
         with patch_post, patch_get:
             self.client.force_login(self.user)
+            state = prime_oauth_state(self.client)
             response = self.client.get(
                 self.callback_url,
-                {"code": "auth-code"},
+                {"code": "auth-code", "state": state},
             )
 
         self.assertEqual(response.status_code, status.HTTP_302_FOUND)
@@ -254,13 +409,195 @@ class SpotifyCallbackViewTests(TestCase):
 
         with patch_post, patch_get:
             self.client.force_login(self.user)
+            state = prime_oauth_state(self.client)
             self.client.get(
                 self.callback_url,
-                {"code": "auth-code"},
+                {"code": "auth-code", "state": state},
             )
 
         self.user.refresh_from_db()
         self.assertEqual(self.user.username, "listener")
+
+
+class SpotifyOAuthStateTests(TestCase):
+    """OAuth ``state`` must bind the callback to the browser that started it."""
+
+    def setUp(self):
+        self.user = auth.get_user_model().objects.create_user(
+            username="listener",
+            password="pw12345",
+        )
+        self.login_url = reverse("spotify-login")
+        self.callback_url = reverse("spotify-callback")
+
+    @staticmethod
+    def _start_flow(client):
+        """Run spotify_login and return the state handed to Spotify."""
+
+        with patch("users.services.spotify.settings.SPOTIFY_CLIENT_ID", "cid"):
+            with patch(
+                "users.services.spotify.settings.SPOTIFY_REDIRECT_URI",
+                "http://localhost/callback",
+            ):
+                response = client.get(reverse("spotify-login"))
+
+        return parse_qs(urlparse(response.url).query)["state"][0]
+
+    @staticmethod
+    def _mock_token_exchange():
+        return patch(
+            "users.services.spotify.requests.post",
+            return_value=make_token_response(),
+        )
+
+    def test_full_flow_with_valid_state_succeeds(self):
+        self.client.force_login(self.user)
+        state = self._start_flow(self.client)
+
+        patch_post = self._mock_token_exchange()
+        patch_get = patch(
+            "music.services.spotify.requests.get",
+            return_value=make_profile_response(),
+        )
+
+        with patch_post, patch_get:
+            response = self.client.get(
+                self.callback_url,
+                {"code": "auth-code", "state": state},
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertTrue(
+            SpotifyConnection.objects.filter(user=self.user).exists()
+        )
+
+    def test_callback_rejects_missing_state(self):
+        self.client.force_login(self.user)
+        self._start_flow(self.client)
+
+        patch_post = self._mock_token_exchange()
+
+        with patch_post as exchange:
+            response = self.client.get(
+                self.callback_url,
+                {"code": "auth-code"},
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        exchange.assert_not_called()
+        self.assertFalse(SpotifyConnection.objects.exists())
+
+    def test_callback_rejects_mismatched_state(self):
+        self.client.force_login(self.user)
+        self._start_flow(self.client)
+
+        patch_post = self._mock_token_exchange()
+
+        with patch_post as exchange:
+            response = self.client.get(
+                self.callback_url,
+                {"code": "auth-code", "state": "attacker-state"},
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        exchange.assert_not_called()
+        self.assertFalse(SpotifyConnection.objects.exists())
+
+    def test_callback_rejects_state_without_a_started_flow(self):
+        self.client.force_login(self.user)
+
+        patch_post = self._mock_token_exchange()
+
+        with patch_post as exchange:
+            response = self.client.get(
+                self.callback_url,
+                {"code": "auth-code", "state": "never-issued"},
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        exchange.assert_not_called()
+        self.assertFalse(SpotifyConnection.objects.exists())
+
+    def test_state_is_cleared_after_a_successful_callback(self):
+        self.client.force_login(self.user)
+        state = self._start_flow(self.client)
+
+        patch_post = self._mock_token_exchange()
+        patch_get = patch(
+            "music.services.spotify.requests.get",
+            return_value=make_profile_response(),
+        )
+
+        with patch_post, patch_get:
+            self.client.get(
+                self.callback_url,
+                {"code": "auth-code", "state": state},
+            )
+
+        self.assertNotIn(SPOTIFY_OAUTH_STATE_SESSION_KEY, self.client.session)
+
+    def test_state_cannot_be_replayed(self):
+        self.client.force_login(self.user)
+        state = self._start_flow(self.client)
+
+        patch_post = self._mock_token_exchange()
+        patch_get = patch(
+            "music.services.spotify.requests.get",
+            return_value=make_profile_response(),
+        )
+
+        with patch_post, patch_get:
+            first = self.client.get(
+                self.callback_url,
+                {"code": "auth-code", "state": state},
+            )
+            second = self.client.get(
+                self.callback_url,
+                {"code": "auth-code", "state": state},
+            )
+
+        self.assertEqual(first.status_code, status.HTTP_302_FOUND)
+        self.assertEqual(second.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(SpotifyConnection.objects.count(), 1)
+
+    def test_state_from_another_session_is_rejected(self):
+        self.client.force_login(self.user)
+        state = self._start_flow(self.client)
+
+        other = auth.get_user_model().objects.create_user(
+            username="intruder",
+            password="pw12345",
+        )
+        self.client.force_login(other)
+
+        patch_post = self._mock_token_exchange()
+
+        with patch_post as exchange:
+            response = self.client.get(
+                self.callback_url,
+                {"code": "auth-code", "state": state},
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        exchange.assert_not_called()
+
+    def test_invalid_state_error_does_not_leak_secrets(self):
+        self.client.force_login(self.user)
+        self._start_flow(self.client)
+
+        response = self.client.get(
+            self.callback_url,
+            {
+                "code": "super-secret-code",
+                "state": "attacker-state",
+            },
+        )
+
+        body = response.content.decode()
+
+        self.assertNotIn("super-secret-code", body)
+        self.assertNotIn("access_token", body)
+        self.assertNotIn("refresh_token", body)
 
 
 class SpotifySharedAccountRegressionTests(TestCase):
@@ -300,9 +637,10 @@ class SpotifySharedAccountRegressionTests(TestCase):
         patch_post, patch_get = self._mock_spotify_exchange_and_profile()
         with patch_post, patch_get:
             self.client.force_login(user)
+            state = prime_oauth_state(self.client)
             return self.client.get(
                 self.callback_url,
-                {"code": "auth-code"},
+                {"code": "auth-code", "state": state},
             )
 
     def test_two_django_users_can_connect_the_same_spotify_account(self):

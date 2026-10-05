@@ -15,7 +15,7 @@ Rather than dumping raw Spotify data, HarmonIQ introduces its own domain concept
 - 🎛️ **Spotify proxy layer** — Server-side proxying of `/me`, `/search`, `/tracks`, `/artists`, `/albums`, `/top-tracks`, and `/top-artists`, keeping credentials and tokens off the client.
 - 🧱 **Clean service-layer architecture** — `Services do the work. Views coordinate.` No Spotify URLs, headers, or HTTP details leak into views.
 - 🌐 **CORS-enabled** — Ready for a separate frontend origin.
-- 🗄️ **SQLite by default** with a drop-in PostgreSQL configuration toggle.
+- 🗄️ **SQLite by default** with a drop-in PostgreSQL configuration via `DATABASE_URL`.
 
 ---
 
@@ -150,9 +150,11 @@ All endpoints are under `/api/`.
 | API | Django REST Framework |
 | HTTP | `requests` |
 | Auth | Spotify OAuth 2.0 (Authorization Code + PKCE-ready) |
-| Database | SQLite (dev) / PostgreSQL (production, commented toggle) |
+| Database | SQLite (dev) / PostgreSQL via `DATABASE_URL` (production) |
 | Env | `python-dotenv` |
 | CORS | `django-cors-headers` |
+| Static files | `whitenoise` (production) |
+| WSGI server | `gunicorn` (production) |
 
 ---
 
@@ -185,20 +187,56 @@ pip install -r requirements.txt
 
 ### 2. Configure environment variables
 
-Create a `.env` file in the project root (`.env` is git-ignored):
+Copy the example file and edit it — `.env` is git-ignored:
+
+```bash
+cp .env.example .env   # Windows: copy .env.example .env
+```
+
+Every setting is read from the environment (see `.env.example` for the full
+list with safe placeholders):
 
 ```env
 # Django
 SECRET_KEY=your-django-secret-key
 DEBUG=True
+ALLOWED_HOSTS=localhost,127.0.0.1
+
+# Frontend origins (comma-separated)
+CORS_ALLOWED_ORIGINS=http://localhost:5173
+CSRF_TRUSTED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+FRONTEND_URL=http://localhost:5173
 
 # Spotify OAuth
 SPOTIFY_CLIENT_ID=your_spotify_client_id
 SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
 SPOTIFY_REDIRECT_URI=http://127.0.0.1:8000/api/users/spotify/callback/
+
+# Database — leave empty locally to stay on SQLite
+DATABASE_URL=
 ```
 
 Make sure the same Redirect URI is registered in your [Spotify app dashboard](https://developer.spotify.com/dashboard).
+
+#### Production configuration
+
+With `DEBUG=False`, `SECRET_KEY` and `ALLOWED_HOSTS` must be set or Django
+refuses to start. Set `DATABASE_URL` to a PostgreSQL URL to switch the
+database backend:
+
+```env
+DEBUG=False
+SECRET_KEY=<long random value>
+ALLOWED_HOSTS=<cloud-run-host>
+DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/DATABASE
+```
+
+Collect static files before serving (WhiteNoise serves them from the app):
+
+```bash
+python manage.py collectstatic --noinput
+gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
+```
 
 ### 3. Run migrations & start the server
 
@@ -236,7 +274,7 @@ Test files live alongside each app (`users/tests.py`, `music/tests.py`, `recomme
 - [ ] Access-token refresh on `401` via `SpotifyAuthService.refresh_access_token`
 - [ ] Real recommendation engine based on `DiscoverySession` + `UserPreference`
 - [ ] More granular Spotify permissions (playlist-modify, etc.)
-- [ ] Production PostgreSQL deployment (documented toggle in `settings.py`)
+- [ ] Cloud Run / Cloud SQL deployment (container build + live secrets)
 - [ ] Schema/API documentation (OpenAPI/Swagger)
 
 ---

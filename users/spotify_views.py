@@ -1,3 +1,5 @@
+import secrets
+
 from datetime import timedelta
 
 from django.conf import settings
@@ -16,13 +18,26 @@ from .services.spotify import (
 )
 
 
+SPOTIFY_OAUTH_STATE_SESSION_KEY = "spotify_oauth_state"
+
+
 @login_required
 def spotify_login(request):
+    # A fresh, unpredictable state per authorization attempt. It is stored in
+    # the authenticated user's Django session and echoed back by Spotify, so the
+    # callback can reject responses that were not started by this browser.
+    state = secrets.token_urlsafe(32)
+    request.session[SPOTIFY_OAUTH_STATE_SESSION_KEY] = state
+    request.session.save()
+
     try:
         authorization_url = (
-            SpotifyAuthService.get_authorization_url()
+            SpotifyAuthService.get_authorization_url(state=state)
         )
     except ValueError as exc:
+        # Do not leave a dangling state behind if we cannot start the flow.
+        request.session.pop(SPOTIFY_OAUTH_STATE_SESSION_KEY, None)
+        request.session.save()
         return JsonResponse(
             {"error": str(exc)},
             status=500,
@@ -38,6 +53,16 @@ def spotify_callback(request):
     if not code:
         return JsonResponse(
             {"error": "Spotify authorization failed"},
+            status=400,
+        )
+
+    if not _consume_oauth_state(request):
+        return JsonResponse(
+            {
+                "error": (
+                    "Invalid or expired Spotify authorization state."
+                )
+            },
             status=400,
         )
 
@@ -111,4 +136,29 @@ def spotify_callback(request):
     # authentication state and show the connected Spotify identity.
     return redirect(
         f"{settings.FRONTEND_URL}/#/discover"
+    )
+
+
+def _consume_oauth_state(request):
+    """Validate the Spotify ``state`` value and clear it from the session.
+
+    Returns True only when the callback carries a state that matches the one
+    stored when the flow was started. The stored value is always deleted so a
+    single authorization code can never be replayed.
+    """
+
+    stored_state = request.session.pop(
+        SPOTIFY_OAUTH_STATE_SESSION_KEY,
+        None,
+    )
+    request.session.save()
+
+    returned_state = request.GET.get("state")
+
+    if not stored_state or not returned_state:
+        return False
+
+    return secrets.compare_digest(
+        str(stored_state),
+        str(returned_state),
     )
